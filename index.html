@@ -1,0 +1,1603 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>ก้าวฟิต — ทีละก้าว ทุกวัน</title>
+
+<!-- PWA / installability -->
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#16213E" />
+<meta name="background-color" content="#F7F4EC" />
+<link rel="icon" href="./icon-192.png" />
+<link rel="apple-touch-icon" href="./icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="ก้าวฟิต" />
+<meta name="mobile-web-app-capable" content="yes" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; background: #F7F4EC; overscroll-behavior-y: none; }
+  body { font-family: 'Sarabun', sans-serif; color: #16213E; }
+  button, input, textarea { font-family: inherit; }
+  input:focus, textarea:focus, button:focus-visible { outline: 2px solid #FF6B57; outline-offset: 1px; }
+  #root { min-height: 100vh; }
+</style>
+
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+"use strict";
+const { useState, useEffect, useMemo, useCallback } = React;
+/* ---------------------------------------------------------------
+   ก้าวฟิต — step-by-step daily fitness tracker
+   navy ink / coral dumbbell / teal bike / plum bodyweight / grey rest
+----------------------------------------------------------------*/
+const COLORS = {
+    navy: "#16213E", navySoft: "#2A3B63", paper: "#F7F4EC",
+    coral: "#FF6B57", gold: "#F5A623", teal: "#2EC4B6", plum: "#8C6FB0",
+    line: "rgba(22,33,62,0.14)",
+};
+const SETTINGS_KEY = "kaofit_settings_v1";
+const LOGS_KEY = "kaofit_logs_v1";
+const THAI_WD_SHORT = ["อา", "จ", "อ", "พ", "พฤ", "ศ", "ส"];
+const THAI_MONTHS = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+const THAI_MONTHS_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+const THAI_WD_FULL = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+/* ---------- inline icons (no external icon library needed) ---------- */
+function Icon({ name, size = 20, color = "currentColor", strokeWidth = 2.2 }) {
+    const p = { fill: "none", stroke: color, strokeWidth, strokeLinecap: "round", strokeLinejoin: "round" };
+    const s = { width: size, height: size, viewBox: "0 0 24 24" };
+    switch (name) {
+        case "dumbbell": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("line", Object.assign({ x1: "6", y1: "12", x2: "18", y2: "12" }, p)),
+            React.createElement("rect", Object.assign({ x: "2.5", y: "9", width: "3.5", height: "6", rx: "1" }, p)),
+            React.createElement("rect", Object.assign({ x: "18", y: "9", width: "3.5", height: "6", rx: "1" }, p))));
+        case "bike": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "6", cy: "17", r: "3.2" }, p)),
+            React.createElement("circle", Object.assign({ cx: "18", cy: "17", r: "3.2" }, p)),
+            React.createElement("path", Object.assign({ d: "M6 17 L10.5 9 L16 9" }, p)),
+            React.createElement("path", Object.assign({ d: "M10.5 9 L13 17 L18 17" }, p)),
+            React.createElement("path", Object.assign({ d: "M10.5 9 L9 6.5 H12" }, p))));
+        case "activity": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "12", cy: "4.5", r: "1.8" }, p)),
+            React.createElement("path", Object.assign({ d: "M12 8 v5 l3.5 5" }, p)),
+            React.createElement("path", Object.assign({ d: "M12 13 l-3.5 5" }, p)),
+            React.createElement("path", Object.assign({ d: "M8.5 10 L12 8 L15.5 10" }, p))));
+        case "moon": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M15 3.5 A8 8 0 1 0 15 20.5 A6.2 6.2 0 0 1 15 3.5Z" }, p))));
+        case "check": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M4.5 12.5 L9.5 17.5 L19.5 6" }, p))));
+        case "chevronLeft": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M15 5 L8 12 L15 19" }, p))));
+        case "chevronRight": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M9 5 L16 12 L9 19" }, p))));
+        case "calendar": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("rect", Object.assign({ x: "3.5", y: "5", width: "17", height: "16", rx: "2" }, p)),
+            React.createElement("path", Object.assign({ d: "M3.5 10 h17" }, p)),
+            React.createElement("path", Object.assign({ d: "M8 3 v4 M16 3 v4" }, p))));
+        case "chart": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M4 20 V4" }, p)),
+            React.createElement("path", Object.assign({ d: "M4 20 H20" }, p)),
+            React.createElement("path", Object.assign({ d: "M6.5 16 L11 10.5 L14.5 13.5 L19 7" }, p))));
+        case "book": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M4 5.5 C4 4.7 4.7 4 6 4 H12 V20 H6 C4.7 20 4 19.3 4 18.5 Z" }, p)),
+            React.createElement("path", Object.assign({ d: "M20 5.5 C20 4.7 19.3 4 18 4 H12 V20 H18 C19.3 20 20 19.3 20 18.5 Z" }, p))));
+        case "home": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M4 11.5 L12 4 L20 11.5" }, p)),
+            React.createElement("path", Object.assign({ d: "M6.5 10 V20 H17.5 V10" }, p))));
+        case "flame": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M12 3 C9 7 8 9 8 12.5 A4 4 0 0 0 16 12.5 C16 10.5 15 9.5 14 8.5 C14 10 13 10.5 12.5 10 C13.5 7 12.8 4.5 12 3Z" }, p)),
+            React.createElement("path", Object.assign({ d: "M9.2 14.5 A2.8 2.8 0 0 0 14.8 14.5" }, p))));
+        case "scale": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("rect", Object.assign({ x: "4", y: "4", width: "16", height: "16", rx: "3" }, p)),
+            React.createElement("path", Object.assign({ d: "M9 15.5 A3 3 0 0 1 15 15.5" }, p)),
+            React.createElement("circle", { cx: "12", cy: "9", r: "0.6", fill: color })));
+        case "gear": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "12", cy: "12", r: "3" }, p)),
+            React.createElement("path", Object.assign({ d: "M12 3 v2.4 M12 18.6 V21 M21 12 h-2.4 M5.4 12 H3 M18.4 5.6 l-1.7 1.7 M7.3 16.7 l-1.7 1.7 M18.4 18.4 l-1.7-1.7 M7.3 7.3 L5.6 5.6" }, p))));
+        case "clock": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "12", cy: "12", r: "8.5" }, p)),
+            React.createElement("path", Object.assign({ d: "M12 7 v5.2 l4 2.4" }, p))));
+        case "route": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "5.5", cy: "6", r: "2" }, p)),
+            React.createElement("circle", Object.assign({ cx: "18.5", cy: "18", r: "2" }, p)),
+            React.createElement("path", Object.assign({ d: "M5.5 8 V13 A4 4 0 0 0 9.5 17 H14.5 A4 4 0 0 0 18.5 13 V16" }, p))));
+        case "bar": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M5 20 V13 M12 20 V8 M19 20 V15" }, p))));
+        case "sliders": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M5 6 H19 M5 12 H19 M5 18 H19" }, p)),
+            React.createElement("circle", { cx: "9", cy: "6", r: "2", fill: color, stroke: color }),
+            React.createElement("circle", { cx: "16", cy: "12", r: "2", fill: color, stroke: color }),
+            React.createElement("circle", { cx: "8", cy: "18", r: "2", fill: color, stroke: color })));
+        case "plus": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M12 5 V19 M5 12 H19" }, p))));
+        case "minus": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M5 12 H19" }, p))));
+        case "info": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("circle", Object.assign({ cx: "12", cy: "12", r: "9" }, p)),
+            React.createElement("path", Object.assign({ d: "M12 11 v6" }, p)),
+            React.createElement("circle", { cx: "12", cy: "7.5", r: "0.9", fill: color })));
+        case "trash": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M5 7 H19 M9 7 V5 a1 1 0 0 1 1 -1 H14 a1 1 0 0 1 1 1 V7 M7 7 L8 20 a1 1 0 0 0 1 1 H15 a1 1 0 0 0 1 -1 L18 7" }, p)),
+            React.createElement("path", Object.assign({ d: "M10 11 v6 M14 11 v6" }, p))));
+        case "reset": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M4 12 a8 8 0 1 1 2.6 5.9" }, p)),
+            React.createElement("path", Object.assign({ d: "M4 17 v-5 h5" }, p))));
+        case "stairs": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M3 20 h4 v-4 h4 v-4 h4 v-4 h4 v-4" }, p)),
+            React.createElement("path", Object.assign({ d: "M3 20 v0 M3 16 h4 M7 12 h4 M11 8 h4 M15 4 h4 v0" }, p))));
+        case "x": return (React.createElement("svg", Object.assign({}, s),
+            React.createElement("path", Object.assign({ d: "M6 6 L18 18 M18 6 L6 18" }, p))));
+        default: return null;
+    }
+}
+// ---------- Stick-figure exercise illustrations (original line-art, no external images) ----------
+function Stick({ pose, stroke = COLORS.navy }) {
+    const p = { fill: "none", stroke, strokeWidth: 13, strokeLinecap: "round", strokeLinejoin: "round" };
+    const accent = { fill: "none", stroke: COLORS.coral, strokeWidth: 13, strokeLinecap: "round", strokeLinejoin: "round" };
+    const head = (cx, cy) => React.createElement("circle", { cx: cx, cy: cy, r: "11", fill: stroke });
+    const J = (cx, cy) => React.createElement("circle", { cx: cx, cy: cy, r: "4.4", fill: COLORS.paper, stroke: stroke, strokeWidth: "3" });
+    switch (pose) {
+        case "stand": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "46", y2: "58" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "74", y2: "58" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "55", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "88", x2: "53", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "65", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "88", x2: "67", y2: "108" }, p)),
+            J(60, 66),
+            J(55, 88),
+            J(65, 88)));
+        case "squat": return (React.createElement("g", null,
+            head(60, 34),
+            React.createElement("line", Object.assign({ x1: "60", y1: "41", x2: "63", y2: "70" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "45", x2: "76", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "45", x2: "50", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "70", x2: "80", y2: "82" }, p)),
+            React.createElement("line", Object.assign({ x1: "80", y1: "82", x2: "80", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "70", x2: "46", y2: "82" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "82", x2: "46", y2: "108" }, p)),
+            J(63, 70),
+            J(80, 82),
+            J(46, 82)));
+        case "press_down": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "70", y2: "46" }, p)),
+            React.createElement("line", Object.assign({ x1: "70", y1: "46", x2: "72", y2: "34" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "50", y2: "46" }, p)),
+            React.createElement("line", Object.assign({ x1: "50", y1: "46", x2: "48", y2: "34" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "55", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "88", x2: "53", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "65", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "88", x2: "67", y2: "108" }, p)),
+            J(60, 40),
+            J(70, 46),
+            J(50, 46),
+            J(60, 66),
+            J(55, 88),
+            J(65, 88)));
+        case "press_up": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "35", x2: "70", y2: "16" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "35", x2: "50", y2: "16" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "55", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "88", x2: "53", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "65", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "88", x2: "67", y2: "108" }, p)),
+            J(60, 35),
+            J(60, 66),
+            J(55, 88),
+            J(65, 88)));
+        case "curl_down": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "62", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "38", x2: "72", y2: "56" }, p)),
+            React.createElement("line", Object.assign({ x1: "72", y1: "56", x2: "72", y2: "64" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "38", x2: "52", y2: "56" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "66", x2: "57", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "57", y1: "88", x2: "55", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "66", x2: "67", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "67", y1: "88", x2: "69", y2: "108" }, p)),
+            J(62, 38),
+            J(72, 56),
+            J(62, 66),
+            J(57, 88),
+            J(67, 88)));
+        case "curl_up": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "62", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "38", x2: "72", y2: "56" }, p)),
+            React.createElement("line", Object.assign({ x1: "72", y1: "56", x2: "63", y2: "40" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "38", x2: "52", y2: "56" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "66", x2: "57", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "57", y1: "88", x2: "55", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "62", y1: "66", x2: "67", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "67", y1: "88", x2: "69", y2: "108" }, p)),
+            J(62, 38),
+            J(72, 56),
+            J(62, 66),
+            J(57, 88),
+            J(67, 88)));
+        case "row_down": return (React.createElement("g", null,
+            head(78, 32),
+            React.createElement("line", Object.assign({ x1: "73", y1: "38", x2: "52", y2: "64" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "46", x2: "70", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "70", y1: "66", x2: "70", y2: "76" }, p)),
+            React.createElement("line", Object.assign({ x1: "52", y1: "64", x2: "46", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "86", x2: "44", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "52", y1: "64", x2: "60", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "86", x2: "62", y2: "108" }, p)),
+            J(65, 46),
+            J(70, 66),
+            J(52, 64),
+            J(46, 86),
+            J(60, 86)));
+        case "row_up": return (React.createElement("g", null,
+            head(78, 32),
+            React.createElement("line", Object.assign({ x1: "73", y1: "38", x2: "52", y2: "64" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "46", x2: "58", y2: "48" }, accent)),
+            React.createElement("line", Object.assign({ x1: "52", y1: "64", x2: "46", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "86", x2: "44", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "52", y1: "64", x2: "60", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "86", x2: "62", y2: "108" }, p)),
+            J(65, 46),
+            J(52, 64),
+            J(46, 86),
+            J(60, 86)));
+        case "tricep_down": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "35", x2: "63", y2: "18" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "18", x2: "50", y2: "24" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "55", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "88", x2: "53", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "65", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "88", x2: "67", y2: "108" }, p)),
+            J(60, 35),
+            J(63, 18),
+            J(60, 66),
+            J(55, 88),
+            J(65, 88)));
+        case "tricep_up": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "35", x2: "63", y2: "18" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "18", x2: "65", y2: "8" }, accent)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "55", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "88", x2: "53", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "65", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "65", y1: "88", x2: "67", y2: "108" }, p)),
+            J(60, 35),
+            J(63, 18),
+            J(60, 66),
+            J(55, 88),
+            J(65, 88)));
+        case "lunge": return (React.createElement("g", null,
+            head(58, 30),
+            React.createElement("line", Object.assign({ x1: "59", y1: "37", x2: "61", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "61", y1: "45", x2: "72", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "61", y1: "45", x2: "50", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "61", y1: "66", x2: "78", y2: "76" }, accent)),
+            React.createElement("line", Object.assign({ x1: "78", y1: "76", x2: "78", y2: "108" }, accent)),
+            React.createElement("line", Object.assign({ x1: "61", y1: "66", x2: "48", y2: "82" }, p)),
+            React.createElement("line", Object.assign({ x1: "48", y1: "82", x2: "40", y2: "108" }, p)),
+            J(61, 66),
+            J(78, 76),
+            J(48, 82)));
+        case "rdl_down": return (React.createElement("g", null,
+            head(90, 42),
+            React.createElement("line", Object.assign({ x1: "86", y1: "48", x2: "64", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "78", y1: "54", x2: "88", y2: "70" }, p)),
+            React.createElement("line", Object.assign({ x1: "88", y1: "70", x2: "86", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "64", y1: "66", x2: "60", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "88", x2: "58", y2: "108" }, p)),
+            React.createElement("line", Object.assign({ x1: "64", y1: "66", x2: "68", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "68", y1: "88", x2: "70", y2: "108" }, p)),
+            J(64, 66),
+            J(78, 54),
+            J(88, 70),
+            J(60, 88),
+            J(68, 88)));
+        case "calf_down": return (React.createElement("g", null,
+            head(60, 22),
+            React.createElement("line", Object.assign({ x1: "60", y1: "29", x2: "60", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "52", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "40", x2: "68", y2: "55" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "57", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "57", y1: "88", x2: "55", y2: "106" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "106", x2: "65", y2: "106" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "66", x2: "63", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "88", x2: "65", y2: "106" }, p)),
+            J(60, 66),
+            J(57, 88),
+            J(63, 88)));
+        case "calf_up": return (React.createElement("g", null,
+            head(60, 16),
+            React.createElement("line", Object.assign({ x1: "60", y1: "23", x2: "60", y2: "60" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "34", x2: "52", y2: "49" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "34", x2: "68", y2: "49" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "60", x2: "57", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "57", y1: "86", x2: "63", y2: "100" }, accent)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "100", x2: "70", y2: "100" }, accent)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "60", x2: "63", y2: "86" }, p)),
+            React.createElement("line", Object.assign({ x1: "63", y1: "86", x2: "69", y2: "100" }, accent)),
+            J(60, 60),
+            J(57, 86),
+            J(63, 86)));
+        case "wallsit": return (React.createElement("g", null,
+            head(46, 40),
+            React.createElement("line", Object.assign({ x1: "46", y1: "47", x2: "46", y2: "68" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "52", x2: "34", y2: "60" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "52", x2: "58", y2: "60" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "68", x2: "70", y2: "68" }, accent)),
+            React.createElement("line", Object.assign({ x1: "70", y1: "68", x2: "70", y2: "108" }, accent)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "68", x2: "46", y2: "90" }, p)),
+            React.createElement("line", Object.assign({ x1: "46", y1: "90", x2: "46", y2: "108" }, p)),
+            React.createElement("line", { x1: "80", y1: "20", x2: "80", y2: "108", stroke: COLORS.line, strokeWidth: "5" }),
+            J(46, 68),
+            J(70, 68)));
+        case "pushup_up": return (React.createElement("g", null,
+            head(90, 50),
+            React.createElement("line", Object.assign({ x1: "85", y1: "55", x2: "35", y2: "66" }, p)),
+            React.createElement("line", Object.assign({ x1: "80", y1: "58", x2: "80", y2: "80" }, p)),
+            React.createElement("line", Object.assign({ x1: "45", y1: "63", x2: "45", y2: "80" }, p)),
+            React.createElement("line", Object.assign({ x1: "35", y1: "66", x2: "30", y2: "86" }, p)),
+            J(80, 58),
+            J(45, 63)));
+        case "pushup_down": return (React.createElement("g", null,
+            head(90, 66),
+            React.createElement("line", Object.assign({ x1: "85", y1: "70", x2: "35", y2: "80" }, p)),
+            React.createElement("line", Object.assign({ x1: "80", y1: "72", x2: "88", y2: "88" }, accent)),
+            React.createElement("line", Object.assign({ x1: "45", y1: "77", x2: "53", y2: "90" }, accent)),
+            React.createElement("line", Object.assign({ x1: "35", y1: "80", x2: "30", y2: "98" }, p)),
+            J(80, 72),
+            J(45, 77)));
+        case "plank": return (React.createElement("g", null,
+            head(90, 52),
+            React.createElement("line", Object.assign({ x1: "85", y1: "57", x2: "35", y2: "68" }, p)),
+            React.createElement("line", Object.assign({ x1: "80", y1: "60", x2: "80", y2: "84" }, p)),
+            React.createElement("line", Object.assign({ x1: "35", y1: "68", x2: "30", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "55", y1: "63", x2: "55", y2: "84" }, accent)),
+            J(80, 60)));
+        case "bridge_down": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "30", cy: "70", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "37", y1: "70", x2: "68", y2: "70" }, p)),
+            React.createElement("line", Object.assign({ x1: "68", y1: "70", x2: "68", y2: "90" }, p)),
+            React.createElement("line", Object.assign({ x1: "68", y1: "90", x2: "90", y2: "90" }, p)),
+            React.createElement("line", Object.assign({ x1: "90", y1: "90", x2: "90", y2: "70" }, p)),
+            React.createElement("line", { x1: "37", y1: "70", x2: "37", y2: "55", stroke: COLORS.line, strokeWidth: "5" }),
+            J(68, 70),
+            J(68, 90)));
+        case "bridge_up": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "30", cy: "70", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "37", y1: "70", x2: "68", y2: "52" }, accent)),
+            React.createElement("line", Object.assign({ x1: "68", y1: "52", x2: "70", y2: "90" }, accent)),
+            React.createElement("line", Object.assign({ x1: "70", y1: "90", x2: "90", y2: "90" }, p)),
+            React.createElement("line", Object.assign({ x1: "90", y1: "90", x2: "90", y2: "70" }, p)),
+            J(68, 52),
+            J(70, 90)));
+        case "superman_rest": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "95", cy: "66", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "88", y1: "66", x2: "30", y2: "70" }, p)),
+            React.createElement("line", Object.assign({ x1: "60", y1: "68", x2: "80", y2: "80" }, p)),
+            React.createElement("line", Object.assign({ x1: "30", y1: "70", x2: "15", y2: "80" }, p)),
+            J(60, 68),
+            J(30, 70)));
+        case "superman_up": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "95", cy: "56", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "88", y1: "58", x2: "30", y2: "68" }, p)),
+            React.createElement("line", Object.assign({ x1: "95", y1: "56", x2: "108", y2: "48" }, accent)),
+            React.createElement("line", Object.assign({ x1: "30", y1: "68", x2: "12", y2: "58" }, accent)),
+            J(30, 68)));
+        case "birddog_neutral": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "92", cy: "58", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "86", y1: "62", x2: "40", y2: "68" }, p)),
+            React.createElement("line", Object.assign({ x1: "78", y1: "64", x2: "78", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "48", y1: "66", x2: "48", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "40", y1: "68", x2: "40", y2: "90" }, p)),
+            J(78, 64),
+            J(48, 66)));
+        case "birddog_extended": return (React.createElement("g", null,
+            React.createElement("circle", { cx: "92", cy: "58", r: "11", fill: stroke }),
+            React.createElement("line", Object.assign({ x1: "86", y1: "62", x2: "40", y2: "68" }, p)),
+            React.createElement("line", Object.assign({ x1: "78", y1: "64", x2: "78", y2: "88" }, p)),
+            React.createElement("line", Object.assign({ x1: "86", y1: "62", x2: "104", y2: "52" }, accent)),
+            React.createElement("line", Object.assign({ x1: "40", y1: "68", x2: "18", y2: "72" }, accent)),
+            React.createElement("line", Object.assign({ x1: "48", y1: "66", x2: "48", y2: "88" }, p)),
+            J(78, 64),
+            J(48, 66)));
+        default: return null;
+    }
+}
+function ExerciseIllustration({ frames }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: COLORS.paper, borderRadius: 12, padding: "14px 6px" } }, frames.map((pose, i) => (React.createElement(React.Fragment, { key: i },
+        React.createElement("svg", { viewBox: "0 0 120 120", width: "128", height: "128" },
+            React.createElement("line", { x1: "6", y1: "110", x2: "114", y2: "110", stroke: COLORS.line, strokeWidth: "4", strokeLinecap: "round" }),
+            React.createElement(Stick, { pose: pose })),
+        i < frames.length - 1 && React.createElement(Icon, { name: "chevronRight", size: 20, color: COLORS.navySoft }))))));
+}
+function StarRating({ count, total = 5, color = COLORS.coral }) {
+    return (React.createElement("div", { style: { display: "flex", gap: 2 } }, Array.from({ length: total }).map((_, i) => (React.createElement("svg", { key: i, width: "13", height: "13", viewBox: "0 0 24 24" },
+        React.createElement("path", { d: "M12 2 L14.6 8.6 L21.8 9.2 L16.3 13.8 L18 20.8 L12 17 L6 20.8 L7.7 13.8 L2.2 9.2 L9.4 8.6 Z", fill: i < count ? color : "none", stroke: color, strokeWidth: "1.5", strokeLinejoin: "round" }))))));
+}
+const DAYTYPE = {
+    0: { key: "rest", label: "พักเต็มที่", duration: "0 นาที", icon: "moon", color: COLORS.navySoft, tint: "rgba(22,33,62,0.05)" },
+    1: { key: "dumbbell", label: "เวทดัมเบล ตัวบน", duration: "~20 นาที", icon: "dumbbell", color: COLORS.coral, tint: "rgba(255,107,87,0.12)" },
+    2: { key: "bike", label: "ปั่นจักรยาน + คาร์ดิโอ", duration: "~20 นาที", icon: "bike", color: COLORS.teal, tint: "rgba(46,196,182,0.14)" },
+    3: { key: "bodyweight", label: "บอดี้เวทรวมตัว", duration: "~20 นาที", icon: "activity", color: COLORS.plum, tint: "rgba(140,111,176,0.14)" },
+    4: { key: "dumbbell", label: "เวทดัมเบล ตัวล่าง", duration: "~20 นาที", icon: "dumbbell", color: COLORS.coral, tint: "rgba(255,107,87,0.12)" },
+    5: { key: "bodyweight", label: "บอดี้เวท + จักรยานเบา", duration: "~25 นาที", icon: "activity", color: COLORS.plum, tint: "rgba(140,111,176,0.14)" },
+    6: { key: "bike", label: "ปั่นจักรยานกับครอบครัว", duration: "~30 นาที", icon: "bike", color: COLORS.teal, tint: "rgba(46,196,182,0.14)" },
+};
+const REGIONS = {
+    dumbbell: [
+        { key: "shoulders", label: "ไหล่", partIds: ["shoulderL", "shoulderR"], side: "left" },
+        { key: "arms", label: "แขน", partIds: ["armL", "armR"], side: "right" },
+        { key: "back", label: "หลัง", partIds: ["chestBack"], side: "left" },
+        { key: "legs", label: "ขา", partIds: ["legL", "legR"], side: "right" },
+    ],
+    bodyweight: [
+        { key: "chest", label: "อก/แขน", partIds: ["chestBack"], side: "left" },
+        { key: "core", label: "แกนกลางลำตัว", partIds: ["core"], side: "right" },
+        { key: "hips", label: "สะโพก/หลังส่วนล่าง", partIds: ["hips"], side: "left" },
+        { key: "legs", label: "ขา", partIds: ["legL", "legR"], side: "right" },
+    ],
+    bike: [
+        { key: "legs", label: "ขา", partIds: ["legL", "legR"], side: "right" },
+    ],
+};
+const EXERCISES = {
+    dumbbell: [
+        { key: "press", name: "Shoulder Press", nameTh: "ดันไหล่", regions: ["shoulders"],
+            base: { sets: 3, reps: 12, unit: "reps", restSec: 60 },
+            frames: ["press_down", "press_up"],
+            steps: ["ยืนตรง ถือดัมเบลข้างละมือระดับไหล่ ฝ่ามือหันไปข้างหน้า", "ดันดัมเบลขึ้นเหนือศีรษะจนแขนเหยียดตรง", "ค่อยๆ ลดกลับสู่ระดับไหล่ช้าๆ ทำซ้ำ"],
+            caution: "อย่าแอ่นหลังตอนดันขึ้น เกร็งหน้าท้องไว้ตลอด" },
+        { key: "curl", name: "Bicep Curl", nameTh: "งอแขนยกดัมเบล", regions: ["arms"],
+            base: { sets: 3, reps: 15, unit: "reps", restSec: 60 },
+            frames: ["curl_down", "curl_up"],
+            steps: ["ยืนตรง แขนแนบลำตัว ถือดัมเบลฝ่ามือหันไปข้างหน้า", "งอศอกยกดัมเบลขึ้นหาไหล่ โดยต้นแขนนิ่งไม่แกว่ง", "ลดลงช้าๆ กลับตำแหน่งเริ่มต้น"],
+            caution: "ไม่แกว่งตัวช่วยยก ให้กล้ามแขนออกแรงล้วนๆ" },
+        { key: "row", name: "Bent-over Row", nameTh: "ก้มตัวพายดัมเบล", regions: ["back", "arms"],
+            base: { sets: 3, reps: 12, unit: "reps", restSec: 60 },
+            frames: ["row_down", "row_up"],
+            steps: ["ก้มตัวเอียงไปข้างหน้าประมาณ 45 องศา เข่างอเล็กน้อย หลังตรง", "ปล่อยดัมเบลห้อยตรงใต้ไหล่", "ดึงดัมเบลขึ้นหาสีข้าง หุบสะบักเข้าหากัน แล้วค่อยๆ ปล่อยลง"],
+            caution: "หลังตรงตลอดการเคลื่อนไหว งอสะโพกไม่ใช่งอหลัง" },
+        { key: "tricep", name: "Tricep Extension", nameTh: "เหยียดแขนเหนือศีรษะ", regions: ["arms"],
+            base: { sets: 3, reps: 15, unit: "reps", restSec: 60 },
+            frames: ["tricep_down", "tricep_up"],
+            steps: ["ยืนตรง ยกดัมเบลขึ้นเหนือศีรษะด้วยสองมือ", "งอศอกลดดัมเบลลงด้านหลังศีรษะช้าๆ", "เหยียดแขนกลับขึ้นเหนือศีรษะจนสุด"],
+            caution: "ล็อกต้นแขนให้นิ่ง ขยับแค่ข้อศอก" },
+        { key: "squat", name: "Goblet Squat", nameTh: "สควอทกอดดัมเบล", regions: ["legs"],
+            base: { sets: 3, reps: 15, unit: "reps", restSec: 60 },
+            frames: ["stand", "squat"],
+            steps: ["ถือดัมเบลแนบอกด้วยสองมือ ยืนแยกขาเท่าสะโพก", "ลดสะโพกลงต่ำกว่าเข่าเล็กน้อย เข่าไม่บิดเข้าใน", "ดันพื้นด้วยส้นเท้ากลับสู่ท่ายืน"],
+            caution: "เข่าชี้ตรงตามปลายเท้าเสมอ อย่าให้บิดเข้าด้านใน" },
+        { key: "lunge", name: "Dumbbell Lunge", nameTh: "ก้าวขาลันจ์ถือดัมเบล", regions: ["legs"],
+            base: { sets: 3, reps: 12, unit: "reps", restSec: 60, perSide: true },
+            frames: ["stand", "lunge"],
+            steps: ["ถือดัมเบลข้างละมือ ยืนตรง", "ก้าวขาข้างหนึ่งไปข้างหน้ายาวๆ ลดสะโพกลงจนเข่าหลังเกือบแตะพื้น", "ดันตัวกลับสู่ท่ายืน สลับข้าง"],
+            caution: "เข่าหน้าไม่ควรเลยปลายเท้า" },
+        { key: "rdl", name: "Romanian Deadlift", nameTh: "ก้มตัวยกดัมเบลหลังตรง", regions: ["legs", "back"],
+            base: { sets: 3, reps: 12, unit: "reps", restSec: 60 },
+            frames: ["stand", "rdl_down"],
+            steps: ["ยืนถือดัมเบลหน้าขา เข่างอเล็กน้อยคงที่", "ก้มสะโพกไปข้างหลัง ดัมเบลไถลลงแนบขา หลังตรง", "ดึงสะโพกกลับสู่ท่ายืน"],
+            caution: "ดัมเบลแนบขาตลอดทาง ไม่ล็อกเข่า" },
+        { key: "calf", name: "Calf Raise", nameTh: "เขย่งปลายเท้ายกส้น", regions: ["legs"],
+            base: { sets: 3, reps: 20, unit: "reps", restSec: 45 },
+            frames: ["calf_down", "calf_up"],
+            steps: ["ยืนตรง ถือดัมเบลข้างลำตัว", "เขย่งปลายเท้ายกส้นเท้าขึ้นสูงสุด ค้างสั้นๆ", "ลดส้นเท้ากลับลงช้าๆ"],
+            caution: "ทำช้าๆ ควบคุมจังหวะ ไม่เด้งตัว" },
+    ],
+    bodyweight: [
+        { key: "bwsquat", name: "Bodyweight Squat", nameTh: "สควอทมือเปล่า", regions: ["legs"],
+            base: { sets: 3, reps: 15, unit: "reps", restSec: 60 },
+            frames: ["stand", "squat"],
+            steps: ["ยืนแยกขาเท่าสะโพก มือประสานหน้าอก", "ลดสะโพกลงต่ำกว่าเข่าเล็กน้อย", "ดันพื้นกลับสู่ท่ายืน"],
+            caution: "เข่าไม่บิดเข้าใน หลังตรงตลอด" },
+        { key: "pushup", name: "Push-ups", nameTh: "วิดพื้น", regions: ["chest", "core"],
+            base: { sets: 3, reps: 11, unit: "reps", restSec: 60 },
+            frames: ["pushup_up", "pushup_down"],
+            steps: ["วางมือกว้างกว่าไหล่เล็กน้อย ลำตัวเป็นเส้นตรงจากหัวถึงส้นเท้า", "งอศอกลดตัวลงจนอกใกล้พื้น", "ดันตัวกลับขึ้นจนแขนเหยียดตรง"],
+            caution: "คุกเข่าแทนได้ถ้ายังไม่ไหว เกร็งหน้าท้องกันสะโพกตก" },
+        { key: "revlunge", name: "Reverse Lunge", nameTh: "ก้าวขาถอยหลังลันจ์", regions: ["legs"],
+            base: { sets: 3, reps: 10, unit: "reps", restSec: 60, perSide: true },
+            frames: ["stand", "lunge"],
+            steps: ["ยืนตรง มือเท้าเอว", "ก้าวขาถอยไปข้างหลัง ลดเข่าหลังลงใกล้พื้น", "ดันตัวกลับสู่ท่ายืน สลับข้าง"],
+            caution: "เน้นการทรงตัว ทำช้าๆ ควบคุมได้" },
+        { key: "plank", name: "Plank", nameTh: "แพลงก์", regions: ["core"],
+            base: { sets: 3, reps: 35, unit: "sec", restSec: 45 },
+            frames: ["plank"],
+            steps: ["วางแขนท่อนล่างกับพื้น ศอกอยู่ใต้ไหล่พอดี", "ยกลำตัวขึ้นเป็นเส้นตรงจากหัวถึงส้นเท้า", "เกร็งหน้าท้องค้างไว้ตามเวลาที่กำหนด"],
+            caution: "อย่าให้สะโพกตกหรือยกสูงเกินไป" },
+        { key: "bridge", name: "Glute Bridge", nameTh: "ยกสะโพกก้น", regions: ["hips"],
+            base: { sets: 3, reps: 15, unit: "reps", restSec: 45 },
+            frames: ["bridge_down", "bridge_up"],
+            steps: ["นอนหงาย ชันเข่า ฝ่าเท้าราบกับพื้น", "ยกสะโพกขึ้นจนลำตัวเป็นเส้นตรงจากไหล่ถึงเข่า", "ค้างสั้นๆ แล้วลดสะโพกลงช้าๆ"],
+            caution: "เกร็งก้นตอนยกขึ้น อย่าแอ่นหลังมากเกินไป" },
+        { key: "superman", name: "Superman Hold", nameTh: "ยกตัวท่าซุปเปอร์แมน", regions: ["hips"],
+            base: { sets: 3, reps: 20, unit: "sec", restSec: 45 },
+            frames: ["superman_rest", "superman_up"],
+            steps: ["นอนคว่ำ เหยียดแขนไปข้างหน้า ขาเหยียดตรง", "ยกแขนและขาขึ้นจากพื้นพร้อมกัน", "ค้างไว้ตามเวลาที่กำหนด แล้วลดลงช้าๆ"],
+            caution: "ยกแค่พอสบาย ไม่ต้องฝืนสูงมาก" },
+        { key: "wallsit", name: "Wall Sit", nameTh: "นั่งพิงกำแพง", regions: ["legs"],
+            base: { sets: 3, reps: 30, unit: "sec", restSec: 60 },
+            frames: ["wallsit"],
+            steps: ["พิงหลังกับกำแพง ค่อยๆ ไถลลงจนเข่างอ 90 องศา", "ให้ต้นขาขนานพื้นเหมือนนั่งเก้าอี้", "ค้างไว้ตามเวลาที่กำหนด"],
+            caution: "เข่าไม่เลยปลายเท้า หลังแนบกำแพงตลอด" },
+        { key: "birddog", name: "Bird-Dog", nameTh: "ยันมือ-เท้าเหยียดสวนขา", regions: ["core", "hips"],
+            base: { sets: 3, reps: 10, unit: "reps", restSec: 45, perSide: true },
+            frames: ["birddog_neutral", "birddog_extended"],
+            steps: ["คลานสี่ขา มือใต้ไหล่ เข่าใต้สะโพก", "เหยียดแขนข้างหนึ่งไปข้างหน้าพร้อมขาอีกข้างไปข้างหลัง", "ค้างสั้นๆ กลับตำแหน่งเริ่มต้น สลับข้าง"],
+            caution: "หลังนิ่ง ไม่บิดสะโพก เคลื่อนไหวช้าๆ" },
+    ],
+};
+// Formula-based difficulty scaling (1-5 stars), anchored on ex.base as the "3-star / recommended daily" level.
+const LEVEL_REP_MULT = { 1: 0.6, 2: 0.8, 3: 1, 4: 1.15, 5: 1.3 };
+const LEVEL_SEC_MULT = { 1: 0.6, 2: 0.8, 3: 1, 4: 1.2, 5: 1.4 };
+const LEVEL_SET_ADJ = { 1: -1, 2: 0, 3: 0, 4: 1, 5: 1 };
+const LEVEL_REST_SEC = { 1: 90, 2: 75, 3: null, 4: 45, 5: 40 };
+function computeExerciseLevel(ex, star) {
+    const b = ex.base;
+    const sets = Math.max(2, b.sets + LEVEL_SET_ADJ[star]);
+    const restSec = LEVEL_REST_SEC[star] === null ? b.restSec : LEVEL_REST_SEC[star];
+    if (b.unit === "sec") {
+        const secs = Math.round((b.reps * LEVEL_SEC_MULT[star]) / 5) * 5;
+        return { sets, amount: secs, unit: "sec", restSec, perSide: !!b.perSide };
+    }
+    const reps = Math.round(b.reps * LEVEL_REP_MULT[star]);
+    return { sets, amount: reps, unit: "reps", restSec, perSide: !!b.perSide };
+}
+function formatSetsRepsSentence(ex, star) {
+    const lv = computeExerciseLevel(ex, star);
+    const perSideTxt = lv.perSide ? "ต่อข้าง " : "";
+    if (lv.unit === "sec") {
+        return `ค้างท่า ${perSideTxt}${lv.amount} วินาที &middot; ${lv.sets} เซ็ต &middot; พัก ${lv.restSec} วินาทีต่อเซ็ต`;
+    }
+    return `เซ็ตละ ${lv.amount} ครั้ง${perSideTxt ? " " + perSideTxt : ""} &middot; ${lv.sets} เซ็ต &middot; พัก ${lv.restSec} วินาทีต่อเซ็ต`;
+}
+const BIKE_LEVELS = [
+    { stars: 2, label: "เริ่มต้นได้เลย", detail: "ความเร็วคงที่ ชีพจรปานกลาง ปั่นต่อเนื่อง 15–20 นาที" },
+    { stars: 3, label: "กำลังไปได้ดี", detail: "สลับเร็ว 1 นาที · ปกติ 2 นาที ทำ 6–8 รอบ (รวม ~20 นาที)" },
+    { stars: 5, label: "ผู้ชำนาญ", detail: "สลับเร็ว 1.5 นาที · ปกติ 1.5 นาที ทำ 8–10 รอบ (รวม ~25 นาที)" },
+];
+// Static geometry for each body part (px, inside a 340 x 360 box). Shared across equipment;
+// which parts are colored/tappable depends on REGIONS[equip].
+const BODY_PARTS = {
+    head: { x: 147, y: 4, w: 46, h: 46, radius: 999 },
+    neck: { x: 162, y: 46, w: 16, h: 12, radius: 5 },
+    shoulderL: { x: 98, y: 52, w: 28, h: 26, radius: 12 },
+    shoulderR: { x: 214, y: 52, w: 28, h: 26, radius: 12 },
+    chestBack: { x: 133, y: 56, w: 74, h: 55, radius: 20 },
+    core: { x: 133, y: 111, w: 74, h: 55, radius: 16 },
+    hips: { x: 133, y: 166, w: 74, h: 40, radius: 18 },
+    armL: { x: 100, y: 78, w: 22, h: 115, radius: 11 },
+    armR: { x: 218, y: 78, w: 22, h: 115, radius: 11 },
+    legL: { x: 136, y: 206, w: 28, h: 130, radius: 14 },
+    legR: { x: 176, y: 206, w: 28, h: 130, radius: 14 },
+};
+const BODY_BOX = { w: 340, h: 360 };
+const GUTTER = 90; // left gutter 0..90, right gutter (340-90)..340
+function edgeX(partIds, side) {
+    const xs = partIds.map((id) => BODY_PARTS[id]);
+    if (side === "left")
+        return Math.min(...xs.map((p) => p.x));
+    return Math.max(...xs.map((p) => p.x + p.w));
+}
+function centerY(partIds) {
+    const ys = partIds.map((id) => BODY_PARTS[id]);
+    const top = Math.min(...ys.map((p) => p.y));
+    const bottom = Math.max(...ys.map((p) => p.y + p.h));
+    return (top + bottom) / 2;
+}
+function BodySilhouette({ regions, color, onPick }) {
+    const activeByPart = {};
+    regions.forEach((r) => r.partIds.forEach((pid) => { activeByPart[pid] = r; }));
+    // Compute natural label Y per region, then de-overlap labels on the same side (min vertical gap)
+    const MIN_GAP = 46;
+    const withY = regions.map((r) => ({ r, cy: centerY(r.partIds) }));
+    const bySide = { left: withY.filter((x) => x.r.side === "left").sort((a, b) => a.cy - b.cy),
+        right: withY.filter((x) => x.r.side === "right").sort((a, b) => a.cy - b.cy) };
+    const labelY = {};
+    ["left", "right"].forEach((side) => {
+        let prevY = -Infinity;
+        bySide[side].forEach((item) => {
+            let y = item.cy;
+            if (y - prevY < MIN_GAP)
+                y = prevY + MIN_GAP;
+            labelY[item.r.key] = y;
+            prevY = y;
+        });
+    });
+    return (React.createElement("div", { style: { position: "relative", width: BODY_BOX.w, height: BODY_BOX.h, margin: "4px auto 0", maxWidth: "100%" } },
+        Object.entries(BODY_PARTS).map(([id, p]) => {
+            const region = activeByPart[id];
+            const isActive = !!region;
+            return (React.createElement("div", { key: id, onClick: isActive ? () => onPick(region.key) : undefined, style: {
+                    position: "absolute", left: p.x, top: p.y, width: p.w, height: p.h, borderRadius: p.radius,
+                    border: `2.4px solid ${isActive ? region2color(color) : COLORS.line}`,
+                    background: isActive ? `${color}30` : "transparent",
+                    cursor: isActive ? "pointer" : "default",
+                    transition: "background 0.15s",
+                } }));
+        }),
+        regions.map((r) => {
+            const ex = edgeX(r.partIds, r.side);
+            const cy = centerY(r.partIds);
+            const ly = labelY[r.key];
+            const gutterX = r.side === "left" ? GUTTER : BODY_BOX.w - GUTTER;
+            const lineLeft = r.side === "left" ? gutterX : ex;
+            const lineWidth = Math.abs(gutterX - ex);
+            return (React.createElement(React.Fragment, { key: r.key },
+                React.createElement("div", { style: { position: "absolute", top: cy - 1, left: lineLeft, width: lineWidth, height: 2, background: color, opacity: 0.6 } }),
+                Math.abs(ly - cy) > 2 && (React.createElement("div", { style: { position: "absolute", top: Math.min(cy, ly), [r.side === "left" ? "right" : "left"]: BODY_BOX.w - GUTTER + (r.side === "left" ? -1.5 : 1.5), width: 2, height: Math.abs(ly - cy), background: color, opacity: 0.35 } })),
+                React.createElement("button", { onClick: () => onPick(r.key), style: {
+                        position: "absolute", top: ly - 15, [r.side === "left" ? "right" : "left"]: BODY_BOX.w - GUTTER,
+                        maxWidth: GUTTER - 6, padding: "6px 10px", borderRadius: 20, border: `1.6px solid ${color}`,
+                        background: "#fff", color: COLORS.navy, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        textAlign: r.side === "left" ? "right" : "left", lineHeight: 1.3,
+                    } }, r.label)));
+        })));
+}
+function region2color(c) { return c; }
+const EQUIPMENT_META = {
+    dumbbell: { title: "เวทดัมเบล 5 กก. x 2", color: COLORS.coral, icon: "dumbbell" },
+    bike: { title: "ปั่นจักรยาน", color: COLORS.teal, icon: "bike" },
+    bodyweight: { title: "ท่าบอดี้เวททั่วไป", color: COLORS.plum, icon: "activity" },
+};
+// DAYTYPE keyed by JS getDay(): 0=Sun..6=Sat
+function getPlanForDay(dayNum, date, logs) {
+    const entry = logs[dayNum];
+    if (entry && entry.planOverride && entry.planOverride.length)
+        return entry.planOverride;
+    return [DAYTYPE[date.getDay()].key];
+}
+// Returns [{key, value}] in each activity's native unit (minutes for dumbbell/bodyweight, km for bike)
+function getDayActivityBreakdown(dayNum, date, logs) {
+    const entry = logs[dayNum];
+    const plan = getPlanForDay(dayNum, date, logs);
+    if (entry && entry.planOverride && entry.planOverride.length) {
+        return plan.map((k) => ({ key: k, value: Number(entry.activityValues && entry.activityValues[k]) || 0 }));
+    }
+    return [{ key: plan[0], value: Number(entry && entry.minutes) || 0 }];
+}
+function todayISO() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const off = d.getTimezoneOffset();
+    const local = new Date(d.getTime() - off * 60000);
+    return local.toISOString().slice(0, 10);
+}
+function dateFromStart(startDate, dayNum) {
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + (dayNum - 1));
+    return d;
+}
+function dayNumberForToday(startDate) {
+    const start = new Date(startDate + "T00:00:00");
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diff = Math.round((today - start) / 86400000) + 1;
+    return diff;
+}
+function loadJSON(key, fallback) {
+    try {
+        const v = localStorage.getItem(key);
+        return v ? JSON.parse(v) : fallback;
+    }
+    catch (e) {
+        return fallback;
+    }
+}
+function saveJSON(key, value) {
+    try {
+        localStorage.setItem(key, JSON.stringify(value));
+        return true;
+    }
+    catch (e) {
+        return false;
+    }
+}
+const DEFAULT_SETTINGS = null; // null = no settings yet -> show onboarding
+function App() {
+    const [settings, setSettings] = useState(() => loadJSON(SETTINGS_KEY, DEFAULT_SETTINGS));
+    const [logs, setLogs] = useState(() => loadJSON(LOGS_KEY, {}));
+    const [tab, setTab] = useState("today");
+    const [selectedDay, setSelectedDay] = useState(1);
+    const [draft, setDraft] = useState({ weight: "", minutes: "", note: "", done: false, activityValues: {} });
+    const [saveState, setSaveState] = useState("idle");
+    const [calMonthOffset, setCalMonthOffset] = useState(0);
+    const [showSettings, setShowSettings] = useState(false);
+    const [pendingSettings, setPendingSettings] = useState(null);
+    const [planEditStep, setPlanEditStep] = useState("idle"); // idle | confirm | editing
+    const [planDraft, setPlanDraft] = useState({ dumbbell: false, bike: false, bodyweight: false });
+    const [libraryResetKey, setLibraryResetKey] = useState(0);
+    useEffect(() => {
+        if (settings) {
+            const t = dayNumberForToday(settings.startDate);
+            setSelectedDay(Math.min(Math.max(t, 1), settings.totalDays));
+        }
+    }, [settings && settings.startDate, settings && settings.totalDays]);
+    useEffect(() => {
+        if (!settings)
+            return;
+        const entry = logs[selectedDay];
+        setDraft({
+            weight: entry && entry.weight !== undefined ? entry.weight : "",
+            minutes: entry && entry.minutes !== undefined ? entry.minutes : "",
+            note: entry && entry.note !== undefined ? entry.note : "",
+            done: entry && entry.done ? true : false,
+            activityValues: (entry && entry.activityValues) || {},
+        });
+    }, [selectedDay, logs, settings]);
+    if (!settings) {
+        return React.createElement(Onboarding, { onDone: (s) => { saveJSON(SETTINGS_KEY, s); setSettings(s); } });
+    }
+    const todayNum = Math.min(Math.max(dayNumberForToday(settings.startDate), 1), settings.totalDays);
+    const saveLog = (dayNum, data) => {
+        setSaveState("saving");
+        const next = Object.assign(Object.assign({}, logs), { [dayNum]: data });
+        setLogs(next);
+        const ok = saveJSON(LOGS_KEY, next);
+        setSaveState(ok ? "saved" : "idle");
+        if (ok)
+            setTimeout(() => setSaveState("idle"), 1200);
+    };
+    const handleSave = () => {
+        if (selectedDay !== todayNum)
+            return; // safety: only today can be logged
+        const existing = logs[selectedDay] || {};
+        const override = existing.planOverride;
+        const totalMinutes = override && override.length
+            ? override.filter((k) => ACT_META[k].unitKey === "min").reduce((sum, k) => sum + (Number(draft.activityValues[k]) || 0), 0)
+            : (draft.minutes === "" ? "" : Number(draft.minutes));
+        saveLog(selectedDay, Object.assign(Object.assign({}, existing), { weight: draft.weight === "" ? "" : Number(draft.weight), minutes: totalMinutes, note: draft.note, done: draft.done, planOverride: override, activityValues: draft.activityValues, loggedOnce: true }));
+    };
+    const addSpecialNote = (dayNum, text) => {
+        if (!text || !text.trim())
+            return;
+        const existing = logs[dayNum] || {};
+        const notes = existing.specialNotes || [];
+        if (notes.length >= 5)
+            return;
+        saveLog(dayNum, Object.assign(Object.assign({}, existing), { specialNotes: [...notes, { text: text.trim(), ts: Date.now() }] }));
+    };
+    const deleteSpecialNote = (dayNum, idx) => {
+        const existing = logs[dayNum] || {};
+        const notes = (existing.specialNotes || []).filter((_, i) => i !== idx);
+        saveLog(dayNum, Object.assign(Object.assign({}, existing), { specialNotes: notes }));
+    };
+    const openPlanEdit = () => {
+        const existing = (logs[todayNum] && logs[todayNum].planOverride) || [];
+        setPlanDraft({
+            dumbbell: existing.includes("dumbbell"),
+            bike: existing.includes("bike"),
+            bodyweight: existing.includes("bodyweight"),
+        });
+        setPlanEditStep("confirm");
+    };
+    const confirmPlanEdit = () => setPlanEditStep("editing");
+    const cancelPlanEdit = () => setPlanEditStep("idle");
+    const savePlanOverride = () => {
+        const planOverride = Object.keys(planDraft).filter((k) => planDraft[k]);
+        const existing = logs[todayNum] || {};
+        saveLog(todayNum, Object.assign(Object.assign({}, existing), { planOverride }));
+        setPlanEditStep("idle");
+    };
+    const resetPlanOverride = () => {
+        const existing = Object.assign({}, (logs[todayNum] || {}));
+        delete existing.planOverride;
+        saveLog(todayNum, existing);
+        setPlanEditStep("idle");
+    };
+    const handleTabSelect = (key) => {
+        if (key === "library" && tab === "library")
+            setLibraryResetKey((k) => k + 1);
+        setTab(key);
+    };
+    const completedCount = Object.values(logs).filter((l) => l && l.done).length;
+    const selectedDate = dateFromStart(settings.startDate, selectedDay);
+    const todayDate = dateFromStart(settings.startDate, todayNum);
+    return (React.createElement("div", { style: { minHeight: "100vh", background: COLORS.paper, paddingBottom: 90 } },
+        React.createElement(Header, { settings: settings, todayNum: todayNum, completedCount: completedCount, onOpenSettings: () => setShowSettings(true) }),
+        React.createElement("div", { style: { maxWidth: 480, margin: "0 auto", padding: "0 16px" } },
+            tab === "today" && (React.createElement(TodayView, { selectedDay: selectedDay, setSelectedDay: setSelectedDay, totalDays: settings.totalDays, todayNum: todayNum, selectedDate: selectedDate, todayDate: todayDate, draft: draft, setDraft: setDraft, onSave: handleSave, saveState: saveState, override: logs[selectedDay] && logs[selectedDay].planOverride, planForDay: getPlanForDay(selectedDay, selectedDate, logs), dayLog: logs[selectedDay], hasLoggedToday: !!(logs[todayNum] && logs[todayNum].loggedOnce), onEditPlan: openPlanEdit, onAddSpecialNote: (text) => addSpecialNote(selectedDay, text), onDeleteSpecialNote: (idx) => deleteSpecialNote(selectedDay, idx) })),
+            tab === "calendar" && (React.createElement(CalendarView, { settings: settings, logs: logs, selectedDay: selectedDay, onPick: (d) => { setSelectedDay(d); handleTabSelect("today"); }, monthOffset: calMonthOffset, setMonthOffset: setCalMonthOffset })),
+            tab === "progress" && React.createElement(ProgressView, { settings: settings, logs: logs }),
+            tab === "library" && React.createElement(LibraryView, { key: libraryResetKey })),
+        React.createElement(TabBar, { tab: tab, setTab: handleTabSelect }),
+        showSettings && (React.createElement(SettingsModal, { settings: settings, onClose: () => setShowSettings(false), onSave: (s) => {
+                if (Object.keys(logs).length > 0) {
+                    setPendingSettings(s);
+                }
+                else {
+                    saveJSON(SETTINGS_KEY, s);
+                    setSettings(s);
+                    setShowSettings(false);
+                }
+            } })),
+        pendingSettings && (React.createElement(ConfirmModal, { title: "\u0E04\u0E38\u0E13\u0E15\u0E49\u0E2D\u0E07\u0E01\u0E32\u0E23\u0E40\u0E23\u0E34\u0E48\u0E21\u0E43\u0E2B\u0E21\u0E48\u0E43\u0E2B\u0E49\u0E16\u0E39\u0E01\u0E15\u0E49\u0E2D\u0E07\u0E43\u0E0A\u0E48\u0E44\u0E2B\u0E21", message: React.createElement("span", null,
+                "\u0E01\u0E32\u0E23\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32\u0E19\u0E35\u0E49\u0E08\u0E30",
+                React.createElement("b", { style: { color: COLORS.coral } }, "\u0E25\u0E49\u0E32\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E17\u0E35\u0E48\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E44\u0E27\u0E49\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14"),
+                "\u0E41\u0E25\u0E30\u0E40\u0E23\u0E34\u0E48\u0E21\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21\u0E43\u0E2B\u0E21\u0E48\u0E15\u0E31\u0E49\u0E07\u0E41\u0E15\u0E48\u0E15\u0E49\u0E19 \u0E01\u0E32\u0E23\u0E01\u0E23\u0E30\u0E17\u0E33\u0E19\u0E35\u0E49\u0E22\u0E49\u0E2D\u0E19\u0E01\u0E25\u0E31\u0E1A\u0E44\u0E21\u0E48\u0E44\u0E14\u0E49"), confirmLabel: "\u0E43\u0E0A\u0E48 \u0E40\u0E23\u0E34\u0E48\u0E21\u0E43\u0E2B\u0E21\u0E48", cancelLabel: "\u0E22\u0E01\u0E40\u0E25\u0E34\u0E01", onConfirm: () => {
+                saveJSON(SETTINGS_KEY, pendingSettings);
+                setSettings(pendingSettings);
+                saveJSON(LOGS_KEY, {});
+                setLogs({});
+                setPendingSettings(null);
+                setShowSettings(false);
+            }, onCancel: () => setPendingSettings(null) })),
+        planEditStep === "confirm" && (React.createElement(ConfirmModal, { title: "\u0E40\u0E1B\u0E25\u0E35\u0E48\u0E22\u0E19\u0E41\u0E1C\u0E19\u0E02\u0E2D\u0E07\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49", message: "\u0E2D\u0E22\u0E32\u0E01\u0E1B\u0E23\u0E31\u0E1A\u0E2A\u0E34\u0E48\u0E07\u0E17\u0E35\u0E48\u0E17\u0E33\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49\u0E43\u0E0A\u0E48\u0E44\u0E2B\u0E21? \u0E40\u0E25\u0E37\u0E2D\u0E01\u0E44\u0E14\u0E49\u0E21\u0E32\u0E01\u0E01\u0E27\u0E48\u0E32 1 \u0E2D\u0E22\u0E48\u0E32\u0E07 \u0E40\u0E1B\u0E25\u0E35\u0E48\u0E22\u0E19\u0E44\u0E14\u0E49\u0E40\u0E09\u0E1E\u0E32\u0E30\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19", confirmLabel: "\u0E43\u0E0A\u0E48 \u0E40\u0E1B\u0E25\u0E35\u0E48\u0E22\u0E19\u0E41\u0E1C\u0E19", cancelLabel: "\u0E44\u0E21\u0E48 \u0E43\u0E0A\u0E49\u0E41\u0E1C\u0E19\u0E40\u0E14\u0E34\u0E21", onConfirm: confirmPlanEdit, onCancel: cancelPlanEdit })),
+        planEditStep === "editing" && (React.createElement(PlanEditor, { planDraft: planDraft, setPlanDraft: setPlanDraft, onSave: savePlanOverride, onCancel: cancelPlanEdit, hasOverride: !!(logs[todayNum] && logs[todayNum].planOverride), onReset: resetPlanOverride }))));
+}
+function Logo({ size = 30 }) {
+    // staircase mark echoing the app icon: ascending steps + small dumbbell
+    return (React.createElement("svg", { width: size, height: size, viewBox: "0 0 40 40" },
+        React.createElement("rect", { x: "4", y: "28", width: "7", height: "8", rx: "1", fill: COLORS.coral }),
+        React.createElement("rect", { x: "13", y: "21", width: "7", height: "15", rx: "1", fill: COLORS.coral }),
+        React.createElement("rect", { x: "22", y: "14", width: "7", height: "22", rx: "1", fill: COLORS.coral }),
+        React.createElement("rect", { x: "24", y: "4", width: "3.4", height: "7", rx: "1", fill: COLORS.navy }),
+        React.createElement("rect", { x: "20", y: "6.2", width: "2.6", height: "2.6", rx: "0.6", fill: COLORS.navy }),
+        React.createElement("rect", { x: "29", y: "6.2", width: "2.6", height: "2.6", rx: "0.6", fill: COLORS.navy })));
+}
+function Onboarding({ onDone }) {
+    const [form, setForm] = useState({
+        startDate: todayISO(), totalDays: 120, startWeight: "", goalWeight: "", heightCm: "",
+    });
+    const canSubmit = form.startWeight !== "" && form.goalWeight !== "" && Number(form.totalDays) > 0;
+    return (React.createElement("div", { style: { minHeight: "100vh", background: COLORS.navy, color: "#fff", display: "flex", flexDirection: "column", justifyContent: "center", padding: 24 } },
+        React.createElement("div", { style: { maxWidth: 420, margin: "0 auto", width: "100%" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
+                React.createElement(Logo, { size: 34 }),
+                React.createElement("div", { style: { fontFamily: "'Kanit', sans-serif", fontSize: 24, fontWeight: 700 } }, "\u0E01\u0E49\u0E32\u0E27\u0E1F\u0E34\u0E15")),
+            React.createElement("div", { style: { fontSize: 12.5, color: "#B9C2DA", marginBottom: 22 } }, "\u0E17\u0E35\u0E25\u0E30\u0E01\u0E49\u0E32\u0E27 \u0E17\u0E33\u0E44\u0E14\u0E49\u0E17\u0E38\u0E01\u0E27\u0E31\u0E19 \u2014 \u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21\u0E02\u0E2D\u0E07\u0E04\u0E38\u0E13\u0E40\u0E2D\u0E07"),
+            React.createElement(OField, { label: "\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E40\u0E23\u0E34\u0E48\u0E21" },
+                React.createElement("input", { type: "date", value: form.startDate, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { startDate: e.target.value }))), style: onboardInput })),
+            React.createElement(OField, { label: "\u0E23\u0E30\u0E22\u0E30\u0E40\u0E27\u0E25\u0E32\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21 (\u0E27\u0E31\u0E19)" },
+                React.createElement("input", { type: "number", inputMode: "numeric", min: "1", placeholder: "\u0E40\u0E0A\u0E48\u0E19 90, 120, 180", value: form.totalDays, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { totalDays: e.target.value }))), style: onboardInput })),
+            React.createElement("div", { style: { display: "flex", gap: 10 } },
+                React.createElement(OField, { label: "\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01\u0E40\u0E23\u0E34\u0E48\u0E21\u0E15\u0E49\u0E19 (\u0E01\u0E01.)" },
+                    React.createElement("input", { type: "number", inputMode: "decimal", placeholder: "\u0E40\u0E0A\u0E48\u0E19 81", value: form.startWeight, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { startWeight: e.target.value }))), style: onboardInput })),
+                React.createElement(OField, { label: "\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22 (\u0E01\u0E01.)" },
+                    React.createElement("input", { type: "number", inputMode: "decimal", placeholder: "\u0E40\u0E0A\u0E48\u0E19 75", value: form.goalWeight, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { goalWeight: e.target.value }))), style: onboardInput }))),
+            React.createElement(OField, { label: "\u0E2A\u0E48\u0E27\u0E19\u0E2A\u0E39\u0E07 (\u0E0B\u0E21.) \u2014 \u0E44\u0E21\u0E48\u0E1A\u0E31\u0E07\u0E04\u0E31\u0E1A" },
+                React.createElement("input", { type: "number", inputMode: "decimal", placeholder: "\u0E40\u0E0A\u0E48\u0E19 174", value: form.heightCm, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { heightCm: e.target.value }))), style: onboardInput })),
+            React.createElement("button", { disabled: !canSubmit, onClick: () => onDone({
+                    startDate: form.startDate,
+                    totalDays: Math.max(1, Math.round(Number(form.totalDays) || 120)),
+                    startWeight: Number(form.startWeight),
+                    goalWeight: Number(form.goalWeight),
+                    heightCm: form.heightCm === "" ? null : Number(form.heightCm),
+                }), style: {
+                    width: "100%", marginTop: 14, padding: "13px 0", borderRadius: 10, border: "none",
+                    background: canSubmit ? COLORS.coral : "rgba(255,255,255,0.15)", color: "#fff",
+                    fontWeight: 700, fontSize: 15, cursor: canSubmit ? "pointer" : "not-allowed",
+                } }, "\u0E40\u0E23\u0E34\u0E48\u0E21\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21\u0E02\u0E2D\u0E07\u0E09\u0E31\u0E19"),
+            React.createElement("div", { style: { fontSize: 11, color: "#8493B8", marginTop: 10, textAlign: "center" } }, "\u0E1B\u0E23\u0E31\u0E1A\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48 \u0E23\u0E30\u0E22\u0E30\u0E40\u0E27\u0E25\u0E32 \u0E2B\u0E23\u0E37\u0E2D\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22\u0E44\u0E14\u0E49\u0E17\u0E38\u0E01\u0E40\u0E21\u0E37\u0E48\u0E2D \u0E17\u0E35\u0E48\u0E44\u0E2D\u0E04\u0E2D\u0E19\u0E40\u0E1F\u0E37\u0E2D\u0E07\u0E14\u0E49\u0E32\u0E19\u0E1A\u0E19\u0E02\u0E2D\u0E07\u0E41\u0E2D\u0E1B"))));
+}
+function OField({ label, children }) {
+    return (React.createElement("div", { style: { marginBottom: 14, flex: 1 } },
+        React.createElement("div", { style: { fontSize: 12, color: "#B9C2DA", marginBottom: 5, fontWeight: 600 } }, label),
+        children));
+}
+const onboardInput = {
+    width: "100%", padding: "11px 12px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.2)",
+    fontSize: 14, color: "#16213E", background: "#fff", boxSizing: "border-box",
+};
+function Header({ settings, todayNum, completedCount, onOpenSettings }) {
+    const pct = Math.round((todayNum / settings.totalDays) * 100);
+    return (React.createElement("div", { style: { background: COLORS.navy, color: COLORS.paper, padding: "22px 16px 18px" } },
+        React.createElement("div", { style: { maxWidth: 480, margin: "0 auto" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement(Logo, { size: 26 }),
+                    React.createElement("h1", { style: { fontFamily: "'Kanit', sans-serif", fontSize: 22, fontWeight: 700, margin: 0 } }, "\u0E01\u0E49\u0E32\u0E27\u0E1F\u0E34\u0E15")),
+                React.createElement("button", { onClick: onOpenSettings, "aria-label": "\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32", style: { background: "none", border: "none", color: "#B9C2DA", cursor: "pointer", padding: 6 } },
+                    React.createElement(Icon, { name: "gear", size: 20 }))),
+            React.createElement("div", { style: { fontSize: 11, letterSpacing: 1.5, color: COLORS.coral, fontWeight: 700, margin: "4px 0 12px" } }, "\u0E17\u0E35\u0E25\u0E30\u0E01\u0E49\u0E32\u0E27 \u0E17\u0E33\u0E44\u0E14\u0E49\u0E17\u0E38\u0E01\u0E27\u0E31\u0E19"),
+            React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center" } },
+                React.createElement("div", { style: { position: "relative", width: 58, height: 58, flexShrink: 0 } },
+                    React.createElement("svg", { width: "58", height: "58", viewBox: "0 0 58 58" },
+                        React.createElement("circle", { cx: "29", cy: "29", r: "25", fill: "none", stroke: "rgba(255,255,255,0.15)", strokeWidth: "6" }),
+                        React.createElement("circle", { cx: "29", cy: "29", r: "25", fill: "none", stroke: COLORS.coral, strokeWidth: "6", strokeDasharray: `${(pct / 100) * 157} 157`, strokeLinecap: "round", transform: "rotate(-90 29 29)" })),
+                    React.createElement("div", { style: { position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 } }, todayNum)),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 600 } },
+                        "Day ",
+                        todayNum,
+                        " \u0E08\u0E32\u0E01 ",
+                        settings.totalDays),
+                    React.createElement("div", { style: { fontSize: 11.5, color: "#B9C2DA", marginTop: 2 } },
+                        "\u0E17\u0E33\u0E04\u0E23\u0E1A\u0E41\u0E25\u0E49\u0E27 ",
+                        completedCount,
+                        " \u0E27\u0E31\u0E19 \u00B7 \u0E40\u0E2B\u0E25\u0E37\u0E2D\u0E2D\u0E35\u0E01 ",
+                        Math.max(settings.totalDays - todayNum, 0),
+                        " \u0E27\u0E31\u0E19"))))));
+}
+function StepButton({ dir, onClick }) {
+    return (React.createElement("button", { onClick: onClick, "aria-label": dir === "prev" ? "ก่อนหน้า" : "ถัดไป", style: { width: 36, height: 36, borderRadius: 10, border: `1px solid ${COLORS.line}`, background: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" } },
+        React.createElement(Icon, { name: dir === "prev" ? "chevronLeft" : "chevronRight", size: 18, color: COLORS.navy })));
+}
+const ACT_META = {
+    dumbbell: { label: "เวทดัมเบล", icon: "dumbbell", color: COLORS.coral, tint: "rgba(255,107,87,0.12)", unit: "นาที", unitKey: "min" },
+    bike: { label: "ปั่นจักรยาน", icon: "bike", color: COLORS.teal, tint: "rgba(46,196,182,0.14)", unit: "กม.", unitKey: "km" },
+    bodyweight: { label: "บอดี้เวท", icon: "activity", color: COLORS.plum, tint: "rgba(140,111,176,0.14)", unit: "นาที", unitKey: "min" },
+    rest: { label: "พักเต็มที่", icon: "moon", color: COLORS.navySoft, tint: "rgba(22,33,62,0.06)", unit: "", unitKey: "rest" },
+};
+function ActivityBanner({ planKeys, onEditPlan }) {
+    return (React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 16, marginBottom: 16, position: "relative" } },
+        React.createElement("div", { style: { fontSize: 11.5, fontWeight: 700, color: COLORS.navySoft, letterSpacing: 0.4, marginBottom: 10, paddingRight: 84 } }, "\u0E01\u0E34\u0E08\u0E01\u0E23\u0E23\u0E21\u0E02\u0E2D\u0E07\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap" } }, planKeys.map((k) => {
+            const m = ACT_META[k];
+            return (React.createElement("div", { key: k, style: { display: "flex", alignItems: "center", gap: 7, background: m.tint, padding: "7px 12px 7px 7px", borderRadius: 12 } },
+                React.createElement("div", { style: { width: 28, height: 28, borderRadius: 8, background: m.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                    React.createElement(Icon, { name: m.icon, size: 16, color: "#fff" })),
+                React.createElement("span", { style: { fontWeight: 700, fontSize: 13.5 } }, m.label)));
+        })),
+        React.createElement("button", { onClick: onEditPlan, style: {
+                position: "absolute", top: 14, right: 14, display: "flex", alignItems: "center", gap: 5,
+                background: COLORS.paper, border: `1.4px solid ${COLORS.navySoft}`, borderRadius: 20,
+                padding: "6px 11px", cursor: "pointer",
+            } },
+            React.createElement(Icon, { name: "gear", size: 14, color: COLORS.navy }),
+            React.createElement("span", { style: { fontSize: 11.5, fontWeight: 700, color: COLORS.navy } }, "\u0E41\u0E01\u0E49\u0E44\u0E02"))));
+}
+function SpecialNoteBox({ notes, onAdd, onDelete }) {
+    const [text, setText] = useState("");
+    const [confirmIdx, setConfirmIdx] = useState(null);
+    const full = (notes || []).length >= 5;
+    return (React.createElement("div", { style: { background: "#FFF4EC", border: `2px dashed ${COLORS.coral}`, borderRadius: 14, padding: 16, marginTop: 16 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 7, marginBottom: 6 } },
+            React.createElement(Icon, { name: "info", size: 17, color: COLORS.coral }),
+            React.createElement("span", { style: { fontWeight: 700, fontSize: 14, color: COLORS.coral } }, "\u0E42\u0E19\u0E49\u0E15\u0E1E\u0E34\u0E40\u0E28\u0E29 \u2014 \u0E41\u0E01\u0E49\u0E44\u0E02\u0E44\u0E14\u0E49\u0E15\u0E23\u0E07\u0E19\u0E35\u0E49\u0E17\u0E35\u0E48\u0E40\u0E14\u0E35\u0E22\u0E27")),
+        React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, marginBottom: 12, lineHeight: 1.6 } }, "\u0E43\u0E0A\u0E49\u0E08\u0E14\u0E2A\u0E34\u0E48\u0E07\u0E17\u0E35\u0E48\u0E19\u0E36\u0E01\u0E2D\u0E2D\u0E01\u0E17\u0E35\u0E2B\u0E25\u0E31\u0E07 \u0E40\u0E0A\u0E48\u0E19 \u0E25\u0E37\u0E21\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E27\u0E48\u0E32\u0E17\u0E33\u0E01\u0E34\u0E08\u0E01\u0E23\u0E23\u0E21\u0E19\u0E35\u0E49\u0E44\u0E1B\u0E41\u0E25\u0E49\u0E27 \u2014 \u0E40\u0E1B\u0E47\u0E19\u0E41\u0E04\u0E48\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E40\u0E2A\u0E23\u0E34\u0E21 \u0E44\u0E21\u0E48\u0E21\u0E35\u0E1C\u0E25\u0E15\u0E48\u0E2D\u0E2A\u0E16\u0E34\u0E15\u0E34\u0E2B\u0E23\u0E37\u0E2D\u0E15\u0E31\u0E27\u0E40\u0E25\u0E02\u0E17\u0E35\u0E48\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E44\u0E1B\u0E41\u0E25\u0E49\u0E27 \u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E44\u0E14\u0E49\u0E2A\u0E39\u0E07\u0E2A\u0E38\u0E14 5 \u0E02\u0E49\u0E2D\u0E04\u0E27\u0E32\u0E21"),
+        notes && notes.length > 0 && (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 } }, notes.map((n, i) => (React.createElement("div", { key: i, style: { display: "flex", alignItems: "flex-start", gap: 8, background: "#fff", borderRadius: 10, padding: "9px 10px" } },
+            React.createElement("div", { style: { flex: 1, fontSize: 12.5, color: COLORS.navy, lineHeight: 1.5, wordBreak: "break-word" } }, n.text),
+            React.createElement("button", { onClick: () => setConfirmIdx(i), "aria-label": "\u0E25\u0E1A\u0E42\u0E19\u0E49\u0E15", style: { background: "none", border: "none", cursor: "pointer", padding: 4, flexShrink: 0 } },
+                React.createElement(Icon, { name: "trash", size: 16, color: COLORS.navySoft }))))))),
+        full ? (React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, textAlign: "center", padding: "8px 0" } }, "\u0E04\u0E23\u0E1A 5 \u0E42\u0E19\u0E49\u0E15\u0E02\u0E2D\u0E07\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49\u0E41\u0E25\u0E49\u0E27")) : (React.createElement(React.Fragment, null,
+            React.createElement("textarea", { rows: 3, placeholder: "\u0E1E\u0E34\u0E21\u0E1E\u0E4C\u0E42\u0E19\u0E49\u0E15\u0E1E\u0E34\u0E40\u0E28\u0E29\u0E02\u0E2D\u0E07\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49...", value: text, onChange: (e) => setText(e.target.value), style: Object.assign(Object.assign({}, inputStyle), { background: "#fff", resize: "vertical", fontFamily: "inherit", marginBottom: 10 }) }),
+            React.createElement("button", { onClick: () => { onAdd(text); setText(""); }, disabled: !text.trim(), style: {
+                    width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+                    background: text.trim() ? COLORS.coral : "rgba(255,107,87,0.4)", color: "#fff",
+                    fontWeight: 700, fontSize: 13.5, cursor: text.trim() ? "pointer" : "not-allowed",
+                } }, "\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E42\u0E19\u0E49\u0E15\u0E1E\u0E34\u0E40\u0E28\u0E29"))),
+        confirmIdx !== null && (React.createElement(ConfirmModal, { title: "\u0E25\u0E1A\u0E42\u0E19\u0E49\u0E15\u0E1E\u0E34\u0E40\u0E28\u0E29", message: "\u0E04\u0E38\u0E13\u0E41\u0E19\u0E48\u0E43\u0E08\u0E27\u0E48\u0E32\u0E08\u0E30\u0E25\u0E1A\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E19\u0E35\u0E49\u0E43\u0E0A\u0E48\u0E44\u0E2B\u0E21", confirmLabel: "\u0E43\u0E0A\u0E48 \u0E25\u0E1A\u0E40\u0E25\u0E22", cancelLabel: "\u0E44\u0E21\u0E48\u0E43\u0E0A\u0E48", onConfirm: () => { onDelete(confirmIdx); setConfirmIdx(null); }, onCancel: () => setConfirmIdx(null) }))));
+}
+function DaySummaryPast({ planKeys, dayLog, dateLabel }) {
+    return (React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 16 } },
+        React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 12 } },
+            "\u0E2A\u0E23\u0E38\u0E1B\u0E1C\u0E25\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48 ",
+            dateLabel),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 } }, planKeys.map((k) => {
+            const m = ACT_META[k];
+            const val = dayLog && dayLog.activityValues && dayLog.activityValues[k];
+            const done = val && Number(val) > 0;
+            return (React.createElement("div", { key: k, style: { display: "flex", alignItems: "center", gap: 10, padding: "8px 10px", borderRadius: 10, background: done ? m.tint : "rgba(22,33,62,0.04)" } },
+                React.createElement("div", { style: { width: 30, height: 30, borderRadius: 9, background: done ? m.color : COLORS.line, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                    React.createElement(Icon, { name: m.icon, size: 16, color: done ? "#fff" : COLORS.navySoft })),
+                React.createElement("div", null,
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 13 } }, m.label),
+                    React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, fontStyle: done ? "normal" : "italic" } }, done ? `ทำไป ${val} ${m.unit}` : "ไม่ได้บันทึก"))));
+        })),
+        (dayLog && (dayLog.weight || dayLog.note)) && (React.createElement("div", { style: { borderTop: `1px solid ${COLORS.line}`, paddingTop: 10, fontSize: 12.5, color: COLORS.navySoft } },
+            dayLog.weight ? React.createElement("div", { style: { marginBottom: 4 } },
+                React.createElement("b", null, "\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01:"),
+                " ",
+                dayLog.weight,
+                " \u0E01\u0E01.") : null,
+            dayLog.note ? React.createElement("div", null,
+                React.createElement("b", null, "\u0E42\u0E19\u0E49\u0E15:"),
+                " ",
+                dayLog.note) : null))));
+}
+function DayGuideFuture({ planKeys, headerLabel }) {
+    return (React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 16 } },
+        React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 12 } }, headerLabel),
+        React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, planKeys.map((k) => {
+            const m = ACT_META[k];
+            return (React.createElement("div", { key: k, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px", borderRadius: 10, background: m.tint } },
+                React.createElement("div", { style: { width: 34, height: 34, borderRadius: 10, background: m.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                    React.createElement(Icon, { name: m.icon, size: 18, color: "#fff" })),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, m.label)));
+        }))));
+}
+function TodayView({ selectedDay, setSelectedDay, totalDays, todayNum, selectedDate, todayDate, draft, setDraft, onSave, saveState, override, planForDay, dayLog, hasLoggedToday, onEditPlan, onAddSpecialNote, onDeleteSpecialNote }) {
+    const isToday = selectedDay === todayNum;
+    const isPast = selectedDay < todayNum;
+    const [revealed, setRevealed] = useState({});
+    const hasOverride = override && override.length > 0;
+    useEffect(() => {
+        if (hasOverride) {
+            const init = {};
+            override.forEach((k) => { init[k] = !!(draft.activityValues && draft.activityValues[k]); });
+            setRevealed(init);
+        }
+    }, [selectedDay]);
+    const dateLabelFull = `${selectedDate.getDate()} ${THAI_MONTHS[selectedDate.getMonth()]} ${selectedDate.getFullYear() + 543}`;
+    // "เตรียมตัวสำหรับ..." header: weekday name if within the same week (up to next Sunday), else full date
+    let guideHeader = "";
+    if (!isToday && !isPast) {
+        const daysAhead = selectedDay - todayNum;
+        const todayWd = todayDate.getDay(); // 0=Sun
+        const daysUntilSunday = todayWd === 0 ? 0 : (7 - todayWd);
+        if (daysAhead <= daysUntilSunday) {
+            guideHeader = `เตรียมตัวสำหรับวัน${THAI_WD_FULL[selectedDate.getDay()]}`;
+        }
+        else {
+            guideHeader = `เตรียมตัวสำหรับวันที่ ${selectedDate.getDate()} ${THAI_MONTHS[selectedDate.getMonth()]}นี้`;
+        }
+    }
+    return (React.createElement("div", { style: { paddingTop: 18 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 } },
+            React.createElement(StepButton, { dir: "prev", onClick: () => setSelectedDay((d) => Math.max(1, d - 1)) }),
+            React.createElement("div", { style: { textAlign: "center" } },
+                React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, fontWeight: 600 } },
+                    "Day ",
+                    selectedDay,
+                    " \u00B7 ",
+                    THAI_WD_FULL[selectedDate.getDay()]),
+                React.createElement("div", { style: { fontFamily: "'Kanit', sans-serif", fontSize: 18, fontWeight: 700 } }, dateLabelFull)),
+            React.createElement(StepButton, { dir: "next", onClick: () => setSelectedDay((d) => Math.min(totalDays, d + 1)) })),
+        !isToday && (React.createElement("button", { onClick: () => setSelectedDay(todayNum), style: { display: "block", margin: "0 auto 14px", fontSize: 11.5, color: COLORS.navySoft, background: "none", border: "none", textDecoration: "underline", cursor: "pointer" } }, "\u0E01\u0E25\u0E31\u0E1A\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E1B\u0E31\u0E08\u0E08\u0E38\u0E1A\u0E31\u0E19")),
+        isToday && React.createElement(ActivityBanner, { planKeys: planForDay, onEditPlan: onEditPlan }),
+        !isToday && (isPast
+            ? React.createElement(DaySummaryPast, { planKeys: planForDay, dayLog: dayLog, dateLabel: dateLabelFull })
+            : React.createElement(DayGuideFuture, { planKeys: planForDay, headerLabel: guideHeader })),
+        !isToday && (React.createElement(SpecialNoteBox, { notes: dayLog && dayLog.specialNotes, onAdd: (t) => onAddSpecialNote(t), onDelete: (i) => onDeleteSpecialNote(i) })),
+        isToday && (React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: 18 } },
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 14, marginBottom: 12 } }, "\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E02\u0E2D\u0E07\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"),
+            hasOverride && (React.createElement("div", { style: { marginBottom: 14 } },
+                React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, marginBottom: 6, fontWeight: 600 } }, "\u0E17\u0E33\u0E08\u0E23\u0E34\u0E07\u0E40\u0E17\u0E48\u0E32\u0E44\u0E2B\u0E23\u0E48 \u2014 \u0E41\u0E15\u0E30\u0E42\u0E25\u0E42\u0E01\u0E49\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E01\u0E23\u0E2D\u0E01"),
+                React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 } }, override.map((k) => {
+                    const m = ACT_META[k];
+                    const isOn = revealed[k];
+                    return (React.createElement("button", { key: k, onClick: () => setRevealed((r) => (Object.assign(Object.assign({}, r), { [k]: !r[k] }))), style: {
+                            display: "flex", alignItems: "center", gap: 7, padding: "8px 12px", borderRadius: 20,
+                            border: `1.6px solid ${m.color}`, background: isOn ? m.color : "#fff", cursor: "pointer",
+                        } },
+                        React.createElement(Icon, { name: m.icon, size: 16, color: isOn ? "#fff" : m.color }),
+                        React.createElement("span", { style: { fontSize: 12.5, fontWeight: 700, color: isOn ? "#fff" : COLORS.navy } }, m.label),
+                        draft.activityValues[k] ? (React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: isOn ? "#fff" : m.color } },
+                            "\u00B7 ",
+                            draft.activityValues[k],
+                            " ",
+                            m.unit)) : null));
+                })),
+                override.map((k) => {
+                    const m = ACT_META[k];
+                    if (!revealed[k])
+                        return null;
+                    return (React.createElement("div", { key: k, style: { marginBottom: 8 } },
+                        React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, marginBottom: 4 } },
+                            m.label,
+                            " (",
+                            m.unit,
+                            ")"),
+                        React.createElement("input", { type: "number", inputMode: "decimal", placeholder: m.unitKey === "km" ? "เช่น 5" : "เช่น 20", value: (draft.activityValues && draft.activityValues[k]) || "", onChange: (e) => setDraft((d) => (Object.assign(Object.assign({}, d), { activityValues: Object.assign(Object.assign({}, d.activityValues), { [k]: e.target.value }) }))), style: inputStyle })));
+                }))),
+            React.createElement(Field, { label: "\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01 (\u0E01\u0E01.)" },
+                React.createElement("input", { type: "number", inputMode: "decimal", placeholder: "\u0E40\u0E0A\u0E48\u0E19 80.5", value: draft.weight, onChange: (e) => setDraft((d) => (Object.assign(Object.assign({}, d), { weight: e.target.value }))), style: inputStyle })),
+            !hasOverride && planForDay[0] !== "rest" && (React.createElement(Field, { label: `${ACT_META[planForDay[0]].label} (${ACT_META[planForDay[0]].unit})` },
+                React.createElement("input", { type: "number", inputMode: "decimal", placeholder: ACT_META[planForDay[0]].unitKey === "km" ? "เช่น 5" : "เช่น 20", value: draft.minutes, onChange: (e) => setDraft((d) => (Object.assign(Object.assign({}, d), { minutes: e.target.value }))), style: inputStyle }))),
+            React.createElement(Field, { label: "\u0E42\u0E19\u0E49\u0E15" },
+                React.createElement("textarea", { rows: 2, placeholder: "\u0E40\u0E0A\u0E48\u0E19 \u0E17\u0E33\u0E04\u0E23\u0E1A\u0E15\u0E32\u0E21\u0E41\u0E1C\u0E19 \u0E23\u0E39\u0E49\u0E2A\u0E36\u0E01\u0E14\u0E35", value: draft.note, onChange: (e) => setDraft((d) => (Object.assign(Object.assign({}, d), { note: e.target.value }))), style: Object.assign(Object.assign({}, inputStyle), { resize: "vertical", fontFamily: "inherit" }) })),
+            React.createElement("label", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, marginTop: 4, marginBottom: 16, cursor: "pointer" } },
+                React.createElement("input", { type: "checkbox", checked: draft.done, onChange: (e) => setDraft((d) => (Object.assign(Object.assign({}, d), { done: e.target.checked }))), style: { width: 18, height: 18, accentColor: COLORS.coral } }),
+                "\u0E17\u0E33\u0E44\u0E14\u0E49\u0E15\u0E32\u0E21\u0E41\u0E1C\u0E19\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"),
+            React.createElement("button", { onClick: onSave, style: { width: "100%", padding: "12px 0", borderRadius: 10, border: "none", background: COLORS.navy, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 } }, saveState === "saved" ? (React.createElement(React.Fragment, null,
+                React.createElement(Icon, { name: "check", size: 17, color: "#fff" }),
+                " \u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E41\u0E25\u0E49\u0E27")) : (hasLoggedToday ? "อัพเดทเพิ่มเติม" : "บันทึก"))))));
+}
+function ConfirmModal({ title, message, confirmLabel, cancelLabel, onConfirm, onCancel }) {
+    return (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(22,33,62,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 60, padding: 24 }, onClick: onCancel },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: "#fff", borderRadius: 16, padding: 22, maxWidth: 340, width: "100%" } },
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 16, marginBottom: 8 } }, title),
+            React.createElement("div", { style: { fontSize: 13, color: COLORS.navySoft, lineHeight: 1.6, marginBottom: 18 } }, message),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("button", { onClick: onCancel, style: { flex: 1, padding: "11px 0", borderRadius: 10, border: `1px solid ${COLORS.line}`, background: "#fff", color: COLORS.navy, fontWeight: 700, fontSize: 13.5, cursor: "pointer" } }, cancelLabel),
+                React.createElement("button", { onClick: onConfirm, style: { flex: 1, padding: "11px 0", borderRadius: 10, border: "none", background: COLORS.coral, color: "#fff", fontWeight: 700, fontSize: 13.5, cursor: "pointer" } }, confirmLabel)))));
+}
+function PlanEditor({ planDraft, setPlanDraft, onSave, onCancel, hasOverride, onReset }) {
+    const OPTIONS = [
+        { key: "dumbbell", label: "เวทดัมเบล", icon: "dumbbell", color: COLORS.coral },
+        { key: "bike", label: "ปั่นจักรยาน", icon: "bike", color: COLORS.teal },
+        { key: "bodyweight", label: "บอดี้เวท", icon: "activity", color: COLORS.plum },
+    ];
+    const anyChecked = Object.values(planDraft).some(Boolean);
+    return (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(22,33,62,0.55)", display: "flex", alignItems: "flex-end", zIndex: 60 }, onClick: onCancel },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: COLORS.paper, width: "100%", maxWidth: 480, margin: "0 auto", borderRadius: "18px 18px 0 0", padding: 20, maxHeight: "85vh", overflowY: "auto" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 } },
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, "\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E2A\u0E34\u0E48\u0E07\u0E17\u0E35\u0E48\u0E17\u0E33\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"),
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                    hasOverride && (React.createElement("button", { onClick: onReset, "aria-label": "\u0E23\u0E35\u0E40\u0E0B\u0E47\u0E15\u0E01\u0E25\u0E31\u0E1A\u0E40\u0E1B\u0E47\u0E19\u0E41\u0E1C\u0E19\u0E40\u0E14\u0E34\u0E21", style: { background: "none", border: "none", cursor: "pointer", padding: 4 } },
+                        React.createElement(Icon, { name: "reset", size: 19, color: COLORS.navySoft }))),
+                    React.createElement("button", { onClick: onCancel, style: { background: "none", border: "none", cursor: "pointer", padding: 4 } },
+                        React.createElement(Icon, { name: "x", size: 20, color: COLORS.navy })))),
+            React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, marginBottom: 14 } }, "\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E44\u0E14\u0E49\u0E21\u0E32\u0E01\u0E01\u0E27\u0E48\u0E32 1 \u0E2D\u0E22\u0E48\u0E32\u0E07 \u0E40\u0E1B\u0E25\u0E35\u0E48\u0E22\u0E19\u0E44\u0E14\u0E49\u0E40\u0E09\u0E1E\u0E32\u0E30\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49\u0E40\u0E17\u0E48\u0E32\u0E19\u0E31\u0E49\u0E19 \u00B7 \u0E01\u0E23\u0E2D\u0E01\u0E08\u0E33\u0E19\u0E27\u0E19\u0E44\u0E14\u0E49\u0E17\u0E35\u0E48\u0E01\u0E32\u0E23\u0E4C\u0E14\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E14\u0E49\u0E32\u0E19\u0E25\u0E48\u0E32\u0E07\u0E02\u0E2D\u0E07\u0E2B\u0E19\u0E49\u0E32"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } }, OPTIONS.map((opt) => {
+                const checked = planDraft[opt.key];
+                return (React.createElement("label", { key: opt.key, style: { display: "flex", alignItems: "center", gap: 10, cursor: "pointer", background: "#fff", border: `1.4px solid ${checked ? opt.color : COLORS.line}`, borderRadius: 12, padding: 12 } },
+                    React.createElement("input", { type: "checkbox", checked: checked, onChange: (e) => setPlanDraft((d) => (Object.assign(Object.assign({}, d), { [opt.key]: e.target.checked }))), style: { width: 19, height: 19, accentColor: opt.color, flexShrink: 0 } }),
+                    React.createElement("div", { style: { width: 34, height: 34, borderRadius: 9, background: opt.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                        React.createElement(Icon, { name: opt.icon, size: 18, color: "#fff" })),
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, opt.label)));
+            })),
+            React.createElement("button", { onClick: onSave, disabled: !anyChecked, style: {
+                    width: "100%", marginTop: 16, padding: "12px 0", borderRadius: 10, border: "none",
+                    background: anyChecked ? COLORS.navy : "rgba(22,33,62,0.2)", color: "#fff", fontWeight: 700, fontSize: 14.5,
+                    cursor: anyChecked ? "pointer" : "not-allowed",
+                } }, "\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E41\u0E1C\u0E19\u0E27\u0E31\u0E19\u0E19\u0E35\u0E49"))));
+}
+function Field({ label, children }) {
+    return (React.createElement("div", { style: { marginBottom: 12 } },
+        React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, marginBottom: 5, fontWeight: 600 } }, label),
+        children));
+}
+const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 9, border: `1px solid ${COLORS.line}`, fontSize: 14, color: COLORS.navy, background: COLORS.paper, boxSizing: "border-box" };
+function CalendarView({ settings, logs, selectedDay, onPick, monthOffset, setMonthOffset }) {
+    const start = new Date(settings.startDate + "T00:00:00");
+    const end = new Date(start);
+    end.setDate(end.getDate() + settings.totalDays - 1);
+    const months = [];
+    let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    const endBucket = new Date(end.getFullYear(), end.getMonth(), 1);
+    while (cursor <= endBucket) {
+        months.push({ year: cursor.getFullYear(), month: cursor.getMonth() });
+        cursor.setMonth(cursor.getMonth() + 1);
+    }
+    const idx = Math.min(Math.max(monthOffset, 0), months.length - 1);
+    const { year, month } = months[idx];
+    const firstOfMonth = new Date(year, month, 1);
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const lead = firstOfMonth.getDay();
+    const cells = [];
+    for (let i = 0; i < lead; i++)
+        cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++)
+        cells.push(d);
+    function dayNumFor(d) { const date = new Date(year, month, d); return Math.round((date - start) / 86400000) + 1; }
+    return (React.createElement("div", { style: { paddingTop: 18 } },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 } },
+            React.createElement(StepButton, { dir: "prev", onClick: () => setMonthOffset((m) => Math.max(0, m - 1)) }),
+            React.createElement("div", { style: { fontFamily: "'Kanit', sans-serif", fontWeight: 700, fontSize: 17 } },
+                THAI_MONTHS[month],
+                " ",
+                year + 543),
+            React.createElement(StepButton, { dir: "next", onClick: () => setMonthOffset((m) => Math.min(months.length - 1, m + 1)) })),
+        React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 } }, [["dumbbell", "เวทดัมเบล"], ["bike", "ปั่นจักรยาน"], ["bodyweight", "บอดี้เวท"], ["rest", "พัก"]].map(([k, label]) => {
+            const t = Object.values(DAYTYPE).find(v => v.key === k);
+            return (React.createElement("span", { key: k, style: { fontSize: 13, fontWeight: 700, padding: "5px 12px", borderRadius: 20, background: k === "rest" ? COLORS.paper : t.color, color: k === "rest" ? COLORS.navySoft : "#fff", border: k === "rest" ? `1.6px solid ${COLORS.navySoft}` : "none" } }, label));
+        })),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5, marginBottom: 6 } }, THAI_WD_SHORT.map((w) => (React.createElement("div", { key: w, style: { textAlign: "center", fontSize: 10.5, fontWeight: 700, color: COLORS.navySoft } }, w)))),
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5 } }, cells.map((d, i) => {
+            if (d === null)
+                return React.createElement("div", { key: i });
+            const dn = dayNumFor(d);
+            const inPlan = dn >= 1 && dn <= settings.totalDays;
+            if (!inPlan)
+                return (React.createElement("div", { key: i, style: { aspectRatio: "1", borderRadius: 9, background: "rgba(22,33,62,0.03)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: COLORS.line } }, d));
+            const date = new Date(year, month, d);
+            const type = DAYTYPE[date.getDay()];
+            const done = logs[dn] && logs[dn].done;
+            const hasNote = logs[dn] && logs[dn].specialNotes && logs[dn].specialNotes.length > 0;
+            const isSelected = dn === selectedDay;
+            return (React.createElement("button", { key: i, onClick: () => onPick(dn), style: { aspectRatio: "1", borderRadius: 9, cursor: "pointer", position: "relative", background: type.tint, border: isSelected ? `2px solid ${COLORS.navy}` : `1px solid ${type.color}33`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 2 } },
+                React.createElement("span", { style: { fontSize: 11.5, fontWeight: 700, color: COLORS.navy } }, d),
+                done && (React.createElement("div", { style: { position: "absolute", top: 2, right: 2, width: 13, height: 13, borderRadius: "50%", background: COLORS.coral, display: "flex", alignItems: "center", justifyContent: "center" } },
+                    React.createElement(Icon, { name: "check", size: 9, color: "#fff", strokeWidth: 3.5 }))),
+                hasNote && (React.createElement("div", { style: { position: "absolute", top: 3, left: 3, width: 8, height: 8, borderRadius: "50%", background: COLORS.coral, border: "1px solid #fff" } }))));
+        }))));
+}
+function MiniChart({ data, type, color, goal, xLabelFmt, extra }) {
+    const w = 320, h = 190, padL = 34, padR = 14, padT = 14, padB = 24;
+    const xs = data.map((d) => d.day);
+    const ys = data.map((d) => d.value);
+    const extraYs = extra ? extra.data.map((d) => d.value) : [];
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const allY = [...ys, ...extraYs, ...(goal !== undefined && goal !== null ? [goal] : [])];
+    const minY = Math.min(...allY, 0) - (Math.min(...allY) === 0 ? 0 : 1);
+    const maxY = Math.max(...allY) + 1;
+    const xScale = (x) => padL + (maxX === minX ? (w - padL - padR) / 2 : (x - minX) / (maxX - minX) * (w - padL - padR));
+    const yScale = (y) => padT + (1 - (y - minY) / (maxY - minY || 1)) * (h - padT - padB);
+    const goalY = goal !== undefined && goal !== null ? yScale(goal) : null;
+    const slotW = data.length > 0 ? (w - padL - padR) / data.length : 40;
+    const barW = extra ? Math.max(4, slotW * 0.32) : Math.max(6, slotW - 6);
+    function renderSeries(series, col, offset) {
+        if (type === "bar") {
+            return series.map((d, i) => {
+                const x = xScale(d.day) - barW / 2 + offset;
+                const y0 = yScale(Math.max(minY, 0));
+                const y1 = yScale(d.value);
+                return React.createElement("rect", { key: i, x: x, y: Math.min(y0, y1), width: barW, height: Math.max(2, Math.abs(y0 - y1)), rx: "3", fill: col });
+            });
+        }
+        return (React.createElement("g", null,
+            React.createElement("path", { d: series.map((d, i) => `${i === 0 ? "M" : "L"} ${xScale(d.day)} ${yScale(d.value)}`).join(" "), fill: "none", stroke: col, strokeWidth: "2.6", strokeLinecap: "round", strokeLinejoin: "round" }),
+            series.map((d, i) => (React.createElement("circle", { key: i, cx: xScale(d.day), cy: yScale(d.value), r: "3", fill: col })))));
+    }
+    return (React.createElement("div", null,
+        extra && (React.createElement("div", { style: { display: "flex", gap: 14, marginBottom: 6, paddingLeft: 4 } },
+            React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: COLORS.navySoft } },
+                React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block" } }),
+                " \u0E23\u0E27\u0E21"),
+            React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, color: COLORS.navySoft } },
+                React.createElement("span", { style: { width: 9, height: 9, borderRadius: "50%", background: extra.color, display: "inline-block" } }),
+                " ",
+                extra.label))),
+        React.createElement("svg", { width: "100%", viewBox: `0 0 ${w} ${h}`, style: { display: "block" } },
+            goalY !== null && (React.createElement(React.Fragment, null,
+                React.createElement("line", { x1: padL, y1: goalY, x2: w - padR, y2: goalY, stroke: COLORS.teal, strokeDasharray: "4 4", strokeWidth: "1.4" }),
+                React.createElement("text", { x: w - padR, y: goalY - 4, fontSize: "9", fill: COLORS.teal, textAnchor: "end" },
+                    "\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22 ",
+                    goal))),
+            React.createElement("line", { x1: padL, y1: padT, x2: padL, y2: h - padB, stroke: COLORS.line }),
+            React.createElement("line", { x1: padL, y1: h - padB, x2: w - padR, y2: h - padB, stroke: COLORS.line }),
+            renderSeries(data, color, extra && type === "bar" ? -barW / 2 - 1 : 0),
+            extra && renderSeries(extra.data, extra.color, type === "bar" ? barW / 2 + 1 : 0),
+            React.createElement("text", { x: padL, y: h - padB + 16, fontSize: "9", fill: COLORS.navySoft }, xLabelFmt ? xLabelFmt(minX) : `Day ${minX}`),
+            React.createElement("text", { x: w - padR, y: h - padB + 16, fontSize: "9", fill: COLORS.navySoft, textAnchor: "end" }, xLabelFmt ? xLabelFmt(maxX) : `Day ${maxX}`))));
+}
+const TIMEFRAMES = [
+    { key: "7d", label: "7 วัน" },
+    { key: "30d", label: "30 วัน" },
+    { key: "all", label: "ทั้งหมด" },
+];
+function chartRange(timeframe, todayNum, totalDays) {
+    const end = Math.min(todayNum, totalDays);
+    if (timeframe === "7d")
+        return [Math.max(1, end - 6), end];
+    if (timeframe === "30d")
+        return [Math.max(1, end - 29), end];
+    return [1, end];
+}
+function ChartControls({ chartType, setChartType, timeframe, setTimeframe, onShowMore, extraEquip, onClearExtra }) {
+    return (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 } },
+        React.createElement("div", { style: { display: "flex", gap: 5, background: "rgba(22,33,62,0.05)", borderRadius: 20, padding: 3 } }, TIMEFRAMES.map((t) => (React.createElement("button", { key: t.key, onClick: () => setTimeframe(t.key), style: {
+                padding: "5px 10px", borderRadius: 16, border: "none", cursor: "pointer",
+                background: timeframe === t.key ? COLORS.navy : "transparent",
+                color: timeframe === t.key ? "#fff" : COLORS.navySoft, fontSize: 11, fontWeight: 700,
+            } }, t.label)))),
+        React.createElement("div", { style: { display: "flex", gap: 6 } },
+            React.createElement("button", { onClick: () => setChartType(chartType === "line" ? "bar" : "line"), "aria-label": "\u0E2A\u0E25\u0E31\u0E1A\u0E23\u0E39\u0E1B\u0E41\u0E1A\u0E1A\u0E01\u0E23\u0E32\u0E1F", style: {
+                    width: 32, height: 32, borderRadius: 9, border: `1px solid ${COLORS.line}`, background: "#fff", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                } },
+                React.createElement(Icon, { name: chartType === "line" ? "bar" : "chart", size: 16, color: COLORS.navy })),
+            React.createElement("button", { onClick: extraEquip ? onClearExtra : onShowMore, style: {
+                    display: "flex", alignItems: "center", gap: 5, padding: "0 12px", height: 32, borderRadius: 9,
+                    border: `1px solid ${COLORS.line}`, background: "#fff", cursor: "pointer", fontSize: 12, fontWeight: 700, color: COLORS.navy,
+                } },
+                React.createElement(Icon, { name: extraEquip ? "x" : "plus", size: 14, color: COLORS.navy }),
+                " ",
+                extraEquip ? EQUIPMENT_META[extraEquip].title : "แสดงเพิ่ม"))));
+}
+function ShowMorePopup({ onPick, onClose }) {
+    return (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(22,33,62,0.55)", display: "flex", alignItems: "flex-end", zIndex: 60 }, onClick: onClose },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: COLORS.paper, width: "100%", maxWidth: 480, margin: "0 auto", borderRadius: "18px 18px 0 0", padding: 20 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 } },
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, "\u0E0B\u0E49\u0E2D\u0E19\u0E01\u0E23\u0E32\u0E1F\u0E02\u0E2D\u0E07\u0E2D\u0E38\u0E1B\u0E01\u0E23\u0E13\u0E4C"),
+                React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", cursor: "pointer", padding: 4 } },
+                    React.createElement(Icon, { name: "x", size: 20, color: COLORS.navy }))),
+            React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft, marginBottom: 14 } }, "\u0E40\u0E25\u0E37\u0E2D\u0E01\u0E2D\u0E38\u0E1B\u0E01\u0E23\u0E13\u0E4C\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E0B\u0E49\u0E2D\u0E19\u0E40\u0E17\u0E35\u0E22\u0E1A\u0E01\u0E31\u0E1A\u0E01\u0E23\u0E32\u0E1F\u0E20\u0E32\u0E1E\u0E23\u0E27\u0E21"),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } }, Object.entries(EQUIPMENT_META).map(([key, meta]) => (React.createElement("button", { key: key, onClick: () => onPick(key), style: {
+                    display: "flex", alignItems: "center", gap: 12, padding: 14, borderRadius: 12,
+                    border: `1px solid ${COLORS.line}`, background: "#fff", cursor: "pointer", textAlign: "left",
+                } },
+                React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: meta.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                    React.createElement(Icon, { name: meta.icon, size: 19, color: "#fff" })),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, meta.title))))))));
+}
+function ProgressView({ settings, logs }) {
+    const [chartType, setChartType] = useState("line");
+    const [timeframe, setTimeframe] = useState("7d");
+    const [showPicker, setShowPicker] = useState(false);
+    const [extraEquip, setExtraEquip] = useState(null);
+    const todayNum = Math.min(Math.max(dayNumberForToday(settings.startDate), 1), settings.totalDays);
+    const [rangeStart, rangeEnd] = chartRange(timeframe, todayNum, settings.totalDays);
+    const dayList = [];
+    for (let d = rangeStart; d <= rangeEnd; d++)
+        dayList.push(d);
+    // total minutes per day: only time-based activities (dumbbell/bodyweight), bike excluded (it's km now)
+    function minutesForDay(d) {
+        const date = dateFromStart(settings.startDate, d);
+        return getDayActivityBreakdown(d, date, logs).reduce((sum, a) => sum + (ACT_META[a.key].unitKey === "min" ? a.value : 0), 0);
+    }
+    function kmForDay(d) {
+        const date = dateFromStart(settings.startDate, d);
+        return getDayActivityBreakdown(d, date, logs).reduce((sum, a) => sum + (ACT_META[a.key].unitKey === "km" ? a.value : 0), 0);
+    }
+    const workoutData = dayList.map((d) => ({ day: d, value: minutesForDay(d) }));
+    const weightDataAll = Object.entries(logs)
+        .filter(([day, v]) => Number(day) >= rangeStart && Number(day) <= rangeEnd && v && v.weight !== "" && v.weight !== undefined && v.weight !== null)
+        .map(([day, v]) => ({ day: Number(day), value: Number(v.weight) }))
+        .sort((a, b) => a.day - b.day);
+    const extraData = extraEquip ? dayList.map((d) => {
+        const date = dateFromStart(settings.startDate, d);
+        const found = getDayActivityBreakdown(d, date, logs).find((a) => a.key === extraEquip);
+        return { day: d, value: found ? found.value : 0 };
+    }) : null;
+    // Total minutes across whole program (time-based only)
+    let totalMinutes = 0, totalKm = 0;
+    for (let d = 1; d <= todayNum; d++) {
+        totalMinutes += minutesForDay(d);
+        totalKm += kmForDay(d);
+    }
+    // Weight: prioritize today's logged weight, else walk backward to most recent logged day
+    let latestWeight = settings.startWeight;
+    for (let d = todayNum; d >= 1; d--) {
+        const w = logs[d] && logs[d].weight;
+        if (w !== undefined && w !== "" && w !== null) {
+            latestWeight = Number(w);
+            break;
+        }
+    }
+    return (React.createElement("div", { style: { paddingTop: 18 } },
+        React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 } },
+            React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "12px 10px" } },
+                React.createElement(Icon, { name: "scale", size: 16, color: COLORS.coral }),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 18, fontFamily: "'Kanit', sans-serif", marginTop: 4 } },
+                    latestWeight,
+                    " \u0E01\u0E01."),
+                React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, marginTop: 1 } },
+                    "\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22 ",
+                    settings.goalWeight,
+                    " \u0E01\u0E01.")),
+            React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "12px 10px" } },
+                React.createElement(Icon, { name: "clock", size: 16, color: COLORS.gold }),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 18, fontFamily: "'Kanit', sans-serif", marginTop: 4 } },
+                    totalMinutes,
+                    " \u0E19\u0E32\u0E17\u0E35"),
+                React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, marginTop: 1 } }, "\u0E19\u0E32\u0E17\u0E35\u0E2A\u0E30\u0E2A\u0E21\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14"))),
+        totalKm > 0 && (React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "12px 10px", marginBottom: 10 } },
+            React.createElement(Icon, { name: "route", size: 16, color: COLORS.teal }),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 18, fontFamily: "'Kanit', sans-serif", marginTop: 4 } },
+                totalKm,
+                " \u0E01\u0E21."),
+            React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, marginTop: 1 } }, "\u0E23\u0E30\u0E22\u0E30\u0E17\u0E32\u0E07\u0E1B\u0E31\u0E48\u0E19\u0E08\u0E31\u0E01\u0E23\u0E22\u0E32\u0E19\u0E2A\u0E30\u0E2A\u0E21"))),
+        React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: "12px 10px", marginBottom: 18 } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                React.createElement(Icon, { name: "calendar", size: 16, color: COLORS.teal }),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 18, fontFamily: "'Kanit', sans-serif" } },
+                    "\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48 ",
+                    todayNum,
+                    "/",
+                    settings.totalDays)),
+            React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, marginTop: 3 } },
+                "\u0E17\u0E33\u0E04\u0E23\u0E1A\u0E41\u0E25\u0E49\u0E27 ",
+                Object.values(logs).filter((l) => l && l.done).length,
+                " \u0E27\u0E31\u0E19 \u00B7 \u0E40\u0E2B\u0E25\u0E37\u0E2D\u0E2D\u0E35\u0E01 ",
+                Math.max(settings.totalDays - todayNum, 0),
+                " \u0E27\u0E31\u0E19")),
+        React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 14, padding: "14px 10px 8px", marginBottom: 14 } },
+            React.createElement(ChartControls, { chartType: chartType, setChartType: setChartType, timeframe: timeframe, setTimeframe: setTimeframe, onShowMore: () => setShowPicker(true), extraEquip: extraEquip, onClearExtra: () => setExtraEquip(null) }),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, marginBottom: 6, paddingLeft: 4 } }, "\u0E2A\u0E16\u0E34\u0E15\u0E34\u0E01\u0E32\u0E23\u0E2D\u0E2D\u0E01\u0E01\u0E33\u0E25\u0E31\u0E07\u0E01\u0E32\u0E22 (\u0E19\u0E32\u0E17\u0E35/\u0E27\u0E31\u0E19)"),
+            React.createElement(MiniChart, { data: workoutData, type: chartType, color: COLORS.navy, extra: extraEquip ? { data: extraData, color: EQUIPMENT_META[extraEquip].color, label: `${EQUIPMENT_META[extraEquip].title} (${ACT_META[extraEquip].unit})` } : null }),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, margin: "16px 0 6px", paddingLeft: 4 } }, "\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01\u0E40\u0E17\u0E35\u0E22\u0E1A\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22"),
+            weightDataAll.length < 2 ? (React.createElement("div", { style: { padding: 24, textAlign: "center", fontSize: 12.5, color: COLORS.navySoft } }, "\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01\u0E2D\u0E22\u0E48\u0E32\u0E07\u0E19\u0E49\u0E2D\u0E22 2 \u0E27\u0E31\u0E19\u0E43\u0E19\u0E0A\u0E48\u0E27\u0E07\u0E19\u0E35\u0E49\u0E40\u0E1E\u0E37\u0E48\u0E2D\u0E14\u0E39\u0E01\u0E23\u0E32\u0E1F")) : (React.createElement(MiniChart, { data: weightDataAll, type: chartType, color: COLORS.coral, goal: settings.goalWeight }))),
+        showPicker && (React.createElement(ShowMorePopup, { onPick: (k) => { setExtraEquip(k); setShowPicker(false); }, onClose: () => setShowPicker(false) }))));
+}
+function LibraryView() {
+    var _a;
+    const [screen, setScreen] = useState("equip"); // equip | region | list | detail | bikeLevels
+    const [equip, setEquip] = useState(null);
+    const [region, setRegion] = useState(null);
+    const [exIndex, setExIndex] = useState(0);
+    const [star, setStar] = useState(3);
+    const goEquip = () => { setScreen("equip"); setEquip(null); setRegion(null); };
+    const pickEquip = (key) => {
+        setEquip(key);
+        if (key === "bike")
+            setScreen("region");
+        else
+            setScreen("region");
+    };
+    const pickRegion = (rKey) => {
+        setRegion(rKey);
+        if (equip === "bike")
+            setScreen("bikeLevels");
+        else
+            setScreen("list");
+    };
+    const pickExercise = (idx) => { setExIndex(idx); setStar(3); setScreen("detail"); };
+    const crumbBack = () => {
+        if (screen === "detail")
+            setScreen("list");
+        else if (screen === "list" || screen === "bikeLevels")
+            setScreen("region");
+        else if (screen === "region")
+            goEquip();
+    };
+    return (React.createElement("div", { style: { paddingTop: 18 } },
+        screen !== "equip" && (React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, gap: 8 } },
+            React.createElement("button", { onClick: crumbBack, style: {
+                    display: "flex", alignItems: "center", gap: 6, background: "#fff", border: `1.4px solid ${COLORS.line}`,
+                    borderRadius: 12, cursor: "pointer", color: COLORS.navy, fontSize: 14.5, fontWeight: 700,
+                    padding: "10px 16px", flexShrink: 0,
+                } },
+                React.createElement(Icon, { name: "chevronLeft", size: 20, color: COLORS.navy }),
+                " \u0E22\u0E49\u0E2D\u0E19\u0E01\u0E25\u0E31\u0E1A"),
+            screen === "detail" && EXERCISES[equip] && EXERCISES[equip][exIndex] && (React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, background: "#fff", border: `1.4px solid ${COLORS.line}`, borderRadius: 12, padding: "6px 8px", flexShrink: 0 } },
+                React.createElement("button", { onClick: () => setStar((s) => Math.max(1, s - 1)), "aria-label": "\u0E25\u0E14\u0E23\u0E30\u0E14\u0E31\u0E1A\u0E14\u0E32\u0E27", disabled: star <= 1, style: { background: "none", border: "none", cursor: star <= 1 ? "default" : "pointer", padding: 3, opacity: star <= 1 ? 0.35 : 1 } },
+                    React.createElement(Icon, { name: "minus", size: 16, color: COLORS.navy })),
+                React.createElement(StarRating, { count: star, color: EQUIPMENT_META[equip].color }),
+                React.createElement("button", { onClick: () => setStar((s) => Math.min(5, s + 1)), "aria-label": "\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E23\u0E30\u0E14\u0E31\u0E1A\u0E14\u0E32\u0E27", disabled: star >= 5, style: { background: "none", border: "none", cursor: star >= 5 ? "default" : "pointer", padding: 3, opacity: star >= 5 ? 0.35 : 1 } },
+                    React.createElement(Icon, { name: "plus", size: 16, color: COLORS.navy })))))),
+        screen === "equip" && (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } }, Object.entries(EQUIPMENT_META).map(([key, meta]) => (React.createElement("button", { key: key, onClick: () => pickEquip(key), style: {
+                display: "flex", alignItems: "center", gap: 12, padding: 16, borderRadius: 14,
+                border: `1px solid ${COLORS.line}`, background: "#fff", cursor: "pointer", textAlign: "left",
+            } },
+            React.createElement("div", { style: { width: 42, height: 42, borderRadius: 12, background: meta.color, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 } },
+                React.createElement(Icon, { name: meta.icon, size: 22, color: "#fff" })),
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 15, flex: 1 } }, meta.title),
+            React.createElement(Icon, { name: "chevronRight", size: 17, color: COLORS.navySoft })))))),
+        screen === "region" && equip && equip !== "bike" && (React.createElement("div", null,
+            React.createElement("h2", { style: { fontSize: 16, fontWeight: 700, textAlign: "center", marginBottom: 2 } }, EQUIPMENT_META[equip].title),
+            React.createElement("p", { style: { fontSize: 12, color: COLORS.navySoft, textAlign: "center", marginTop: 0 } }, "\u0E41\u0E15\u0E30\u0E2A\u0E48\u0E27\u0E19\u0E02\u0E2D\u0E07\u0E23\u0E48\u0E32\u0E07\u0E01\u0E32\u0E22 \u0E2B\u0E23\u0E37\u0E2D\u0E41\u0E15\u0E30\u0E1B\u0E49\u0E32\u0E22\u0E0A\u0E37\u0E48\u0E2D\u0E02\u0E49\u0E32\u0E07\u0E46"),
+            React.createElement(BodySilhouette, { regions: REGIONS[equip], color: EQUIPMENT_META[equip].color, onPick: pickRegion }))),
+        screen === "region" && equip === "bike" && (React.createElement("div", null,
+            React.createElement("h2", { style: { fontSize: 16, fontWeight: 700, textAlign: "center", marginBottom: 2 } }, "\u0E1B\u0E31\u0E48\u0E19\u0E08\u0E31\u0E01\u0E23\u0E22\u0E32\u0E19"),
+            React.createElement("p", { style: { fontSize: 12, color: COLORS.navySoft, textAlign: "center", marginTop: 0 } }, "\u0E1B\u0E31\u0E48\u0E19\u0E08\u0E31\u0E01\u0E23\u0E22\u0E32\u0E19\u0E1E\u0E31\u0E12\u0E19\u0E32\u0E23\u0E48\u0E32\u0E07\u0E01\u0E32\u0E22\u0E41\u0E1A\u0E1A\u0E2D\u0E07\u0E04\u0E4C\u0E23\u0E27\u0E21 \u0E44\u0E21\u0E48\u0E44\u0E14\u0E49\u0E40\u0E08\u0E32\u0E30\u0E08\u0E07\u0E2A\u0E48\u0E27\u0E19\u0E43\u0E14\u0E2A\u0E48\u0E27\u0E19\u0E2B\u0E19\u0E36\u0E48\u0E07"),
+            React.createElement(BodySilhouette, { regions: REGIONS.bike, color: COLORS.teal, onPick: () => setScreen("bikeLevels") }),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8, marginTop: 10 } },
+                React.createElement(BenefitRow, { label: "\u0E2B\u0E31\u0E27\u0E43\u0E08\u0E41\u0E25\u0E30\u0E1B\u0E2D\u0E14", desc: "\u0E40\u0E1E\u0E34\u0E48\u0E21\u0E04\u0E27\u0E32\u0E21\u0E1F\u0E34\u0E15\u0E02\u0E2D\u0E07\u0E23\u0E30\u0E1A\u0E1A\u0E2B\u0E32\u0E22\u0E43\u0E08-\u0E44\u0E2B\u0E25\u0E40\u0E27\u0E35\u0E22\u0E19\u0E40\u0E25\u0E37\u0E2D\u0E14 (\u0E04\u0E32\u0E23\u0E4C\u0E14\u0E34\u0E42\u0E2D)" }),
+                React.createElement(BenefitRow, { label: "\u0E01\u0E25\u0E49\u0E32\u0E21\u0E40\u0E19\u0E37\u0E49\u0E2D\u0E02\u0E32", desc: "\u0E15\u0E49\u0E19\u0E02\u0E32\u0E41\u0E25\u0E30\u0E19\u0E48\u0E2D\u0E07\u0E41\u0E02\u0E47\u0E07\u0E41\u0E23\u0E07\u0E02\u0E36\u0E49\u0E19\u0E08\u0E32\u0E01\u0E01\u0E32\u0E23\u0E1B\u0E31\u0E48\u0E19\u0E0B\u0E49\u0E33\u0E46" }),
+                React.createElement(BenefitRow, { label: "\u0E04\u0E27\u0E32\u0E21\u0E17\u0E19\u0E17\u0E32\u0E19", desc: "\u0E23\u0E48\u0E32\u0E07\u0E01\u0E32\u0E22\u0E40\u0E2B\u0E19\u0E37\u0E48\u0E2D\u0E22\u0E0A\u0E49\u0E32\u0E25\u0E07\u0E40\u0E21\u0E37\u0E48\u0E2D\u0E17\u0E33\u0E01\u0E34\u0E08\u0E01\u0E23\u0E23\u0E21\u0E15\u0E48\u0E2D\u0E40\u0E19\u0E37\u0E48\u0E2D\u0E07" })),
+            React.createElement("button", { onClick: () => setScreen("bikeLevels"), style: { width: "100%", marginTop: 14, padding: "12px 0", borderRadius: 10, border: "none", background: COLORS.teal, color: COLORS.navy, fontWeight: 700, fontSize: 14, cursor: "pointer" } }, "\u0E14\u0E39\u0E23\u0E30\u0E14\u0E31\u0E1A\u0E04\u0E27\u0E32\u0E21\u0E2B\u0E19\u0E31\u0E01"))),
+        screen === "bikeLevels" && (React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 10 } },
+            BIKE_LEVELS.map((lv, i) => (React.createElement("div", { key: i, style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 14 } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 } },
+                    React.createElement("div", { style: { fontWeight: 700, fontSize: 14 } }, lv.label),
+                    React.createElement(StarRating, { count: lv.stars, color: COLORS.teal })),
+                React.createElement("div", { style: { fontSize: 12, color: COLORS.navySoft } }, lv.detail)))),
+            React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, background: "rgba(46,196,182,0.1)", borderRadius: 10, padding: 12, marginTop: 4 } },
+                React.createElement("b", null, "\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E23\u0E23\u0E30\u0E27\u0E31\u0E07:"),
+                " \u0E2A\u0E27\u0E21\u0E2B\u0E21\u0E27\u0E01\u0E01\u0E31\u0E19\u0E19\u0E47\u0E2D\u0E01\u0E40\u0E2A\u0E21\u0E2D \u0E15\u0E23\u0E27\u0E08\u0E40\u0E1A\u0E23\u0E01/\u0E25\u0E21\u0E22\u0E32\u0E07\u0E01\u0E48\u0E2D\u0E19\u0E2D\u0E2D\u0E01 \u0E40\u0E25\u0E37\u0E2D\u0E01\u0E40\u0E2A\u0E49\u0E19\u0E17\u0E32\u0E07\u0E17\u0E35\u0E48\u0E04\u0E38\u0E49\u0E19\u0E40\u0E04\u0E22\u0E41\u0E25\u0E30\u0E44\u0E21\u0E48\u0E21\u0E35\u0E2A\u0E34\u0E48\u0E07\u0E01\u0E35\u0E14\u0E02\u0E27\u0E32\u0E07"))),
+        screen === "list" && equip && region && (React.createElement("div", null,
+            React.createElement("h2", { style: { fontSize: 16, fontWeight: 700, textAlign: "center", marginBottom: 14 } }, (_a = REGIONS[equip].find((r) => r.key === region)) === null || _a === void 0 ? void 0 : _a.label),
+            React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 8 } }, EXERCISES[equip]
+                .filter((e) => e.regions.includes(region))
+                .sort((a, b) => b.regions.length - a.regions.length)
+                .map((ex) => {
+                const idx = EXERCISES[equip].indexOf(ex);
+                const bonusKeys = ex.regions.filter((k) => k !== region);
+                const bonusLabels = bonusKeys.map((k) => { var _a; return (_a = REGIONS[equip].find((r) => r.key === k)) === null || _a === void 0 ? void 0 : _a.label; }).filter(Boolean);
+                return (React.createElement("button", { key: ex.key, onClick: () => pickExercise(idx), style: {
+                        display: "flex", flexDirection: "column", gap: 6, padding: 14, borderRadius: 12,
+                        border: bonusLabels.length ? `1.6px solid ${EQUIPMENT_META[equip].color}` : `1px solid ${COLORS.line}`,
+                        background: "#fff", cursor: "pointer", textAlign: "left",
+                    } },
+                    bonusLabels.length > 0 && (React.createElement("span", { style: {
+                            alignSelf: "flex-start", fontSize: 10.5, fontWeight: 700, color: "#fff",
+                            background: EQUIPMENT_META[equip].color, padding: "3px 9px", borderRadius: 20,
+                        } },
+                        "\u0E1B\u0E25\u0E14\u0E25\u0E47\u0E2D\u0E01",
+                        bonusLabels.join("/"),
+                        "\u0E14\u0E49\u0E27\u0E22")),
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between" } },
+                        React.createElement("div", null,
+                            React.createElement("div", { style: { fontWeight: 700, fontSize: 13.5 } },
+                                ex.nameTh,
+                                " ",
+                                React.createElement("span", { style: { fontWeight: 500, color: COLORS.navySoft } },
+                                    "(",
+                                    ex.name,
+                                    ")")),
+                            React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, marginTop: 2 }, dangerouslySetInnerHTML: { __html: formatSetsRepsSentence(ex, 3) } })),
+                        React.createElement(Icon, { name: "chevronRight", size: 16, color: COLORS.navySoft }))));
+            })))),
+        screen === "detail" && equip && (React.createElement(ExerciseDetail, { exercise: EXERCISES[equip][exIndex], color: EQUIPMENT_META[equip].color, star: star }))));
+}
+function BenefitRow({ label, desc }) {
+    return (React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 10px", background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 10 } },
+        React.createElement("span", { style: { width: 7, height: 7, borderRadius: "50%", background: COLORS.teal, marginTop: 5, flexShrink: 0 } }),
+        React.createElement("div", null,
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 12.5 } }, label),
+            React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft } }, desc))));
+}
+function ExerciseDetail({ exercise, color, star }) {
+    return (React.createElement("div", null,
+        React.createElement("h2", { style: { fontSize: 18, fontWeight: 700, textAlign: "center", marginBottom: 0 } }, exercise.nameTh),
+        React.createElement("div", { style: { fontSize: 13, color: COLORS.navySoft, textAlign: "center", marginBottom: 12 } }, exercise.name),
+        React.createElement(ExerciseIllustration, { frames: exercise.frames }),
+        React.createElement("div", { style: { textAlign: "center", marginTop: 10, marginBottom: 4 } },
+            React.createElement("span", { style: { fontSize: 11.5, fontWeight: 700, color, background: `${color}18`, padding: "3px 10px", borderRadius: 20 } }, star <= 1 ? "เริ่มต้น / ผู้สูงอายุ" : star <= 2 ? "มือใหม่" : star === 3 ? "แนะนำต่อวัน" : star === 4 ? "ฟิตแล้ว" : "จัดเต็ม")),
+        React.createElement("div", { style: { fontSize: 15, fontWeight: 700, color: COLORS.navy, textAlign: "center", marginBottom: 14 }, dangerouslySetInnerHTML: { __html: formatSetsRepsSentence(exercise, star) } }),
+        React.createElement("div", { style: { background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 12, padding: 14 } },
+            React.createElement("div", { style: { fontWeight: 700, fontSize: 13, marginBottom: 8 } }, "\u0E27\u0E34\u0E18\u0E35\u0E17\u0E33"),
+            React.createElement("ol", { style: { margin: 0, paddingLeft: 18 } }, exercise.steps.map((s, i) => (React.createElement("li", { key: i, style: { fontSize: 12.5, color: COLORS.navySoft, lineHeight: 1.7, marginBottom: 4 } }, s))))),
+        exercise.caution && (React.createElement("div", { style: { fontSize: 11.5, color: COLORS.navySoft, background: `${color}14`, borderRadius: 10, padding: 12, marginTop: 10 } },
+            React.createElement("b", null, "\u0E02\u0E49\u0E2D\u0E04\u0E27\u0E23\u0E23\u0E30\u0E27\u0E31\u0E07:"),
+            " ",
+            exercise.caution))));
+}
+function SettingsModal({ settings, onClose, onSave }) {
+    const [form, setForm] = useState(Object.assign({}, settings));
+    return (React.createElement("div", { style: { position: "fixed", inset: 0, background: "rgba(22,33,62,0.55)", display: "flex", alignItems: "flex-end", zIndex: 50 }, onClick: onClose },
+        React.createElement("div", { onClick: (e) => e.stopPropagation(), style: { background: COLORS.paper, width: "100%", maxWidth: 480, margin: "0 auto", borderRadius: "18px 18px 0 0", padding: 20, maxHeight: "85vh", overflowY: "auto" } },
+            React.createElement("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 } },
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 16 } }, "\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21"),
+                React.createElement("button", { onClick: onClose, style: { background: "none", border: "none", cursor: "pointer", padding: 4 } },
+                    React.createElement(Icon, { name: "x", size: 20, color: COLORS.navy }))),
+            React.createElement(Field, { label: "\u0E27\u0E31\u0E19\u0E17\u0E35\u0E48\u0E40\u0E23\u0E34\u0E48\u0E21" },
+                React.createElement("input", { type: "date", value: form.startDate, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { startDate: e.target.value }))), style: inputStyle })),
+            React.createElement(Field, { label: "\u0E23\u0E30\u0E22\u0E30\u0E40\u0E27\u0E25\u0E32\u0E42\u0E1B\u0E23\u0E41\u0E01\u0E23\u0E21 (\u0E27\u0E31\u0E19)" },
+                React.createElement("input", { type: "number", inputMode: "numeric", min: "1", value: form.totalDays, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { totalDays: e.target.value }))), style: inputStyle })),
+            React.createElement("div", { style: { display: "flex", gap: 10 } },
+                React.createElement(Field, { label: "\u0E19\u0E49\u0E33\u0E2B\u0E19\u0E31\u0E01\u0E40\u0E23\u0E34\u0E48\u0E21\u0E15\u0E49\u0E19 (\u0E01\u0E01.)" },
+                    React.createElement("input", { type: "number", inputMode: "decimal", value: form.startWeight, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { startWeight: e.target.value }))), style: inputStyle })),
+                React.createElement(Field, { label: "\u0E40\u0E1B\u0E49\u0E32\u0E2B\u0E21\u0E32\u0E22 (\u0E01\u0E01.)" },
+                    React.createElement("input", { type: "number", inputMode: "decimal", value: form.goalWeight, onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { goalWeight: e.target.value }))), style: inputStyle }))),
+            React.createElement(Field, { label: "\u0E2A\u0E48\u0E27\u0E19\u0E2A\u0E39\u0E07 (\u0E0B\u0E21.)" },
+                React.createElement("input", { type: "number", inputMode: "decimal", value: form.heightCm || "", onChange: (e) => setForm(f => (Object.assign(Object.assign({}, f), { heightCm: e.target.value }))), style: inputStyle })),
+            React.createElement("button", { onClick: () => onSave({
+                    startDate: form.startDate,
+                    totalDays: Math.max(1, Math.round(Number(form.totalDays) || 1)),
+                    startWeight: Number(form.startWeight),
+                    goalWeight: Number(form.goalWeight),
+                    heightCm: form.heightCm === "" ? null : Number(form.heightCm),
+                }), style: { width: "100%", marginTop: 6, padding: "12px 0", borderRadius: 10, border: "none", background: COLORS.navy, color: "#fff", fontWeight: 700, fontSize: 14.5, cursor: "pointer" } }, "\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E01\u0E32\u0E23\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32"),
+            React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, marginTop: 10, textAlign: "center" } }, "\u0E16\u0E49\u0E32\u0E21\u0E35\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E2D\u0E22\u0E39\u0E48\u0E41\u0E25\u0E49\u0E27 \u0E01\u0E32\u0E23\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E15\u0E31\u0E49\u0E07\u0E04\u0E48\u0E32\u0E43\u0E2B\u0E21\u0E48\u0E08\u0E30\u0E25\u0E49\u0E32\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E40\u0E01\u0E48\u0E32\u0E17\u0E31\u0E49\u0E07\u0E2B\u0E21\u0E14 (\u0E08\u0E30\u0E21\u0E35\u0E41\u0E08\u0E49\u0E07\u0E40\u0E15\u0E37\u0E2D\u0E19\u0E01\u0E48\u0E2D\u0E19\u0E40\u0E2A\u0E21\u0E2D)"))));
+}
+function TabBar({ tab, setTab }) {
+    const tabs = [
+        { key: "today", label: "วันนี้", icon: "home" },
+        { key: "calendar", label: "ปฏิทิน", icon: "calendar" },
+        { key: "progress", label: "ความคืบหน้า", icon: "chart" },
+        { key: "library", label: "คลังท่า", icon: "book" },
+    ];
+    return (React.createElement("div", { style: { position: "fixed", bottom: 0, left: 0, right: 0, background: "#fff", borderTop: `1px solid ${COLORS.line}`, display: "flex", justifyContent: "center", boxShadow: "0 -2px 12px rgba(22,33,62,0.06)", paddingBottom: "env(safe-area-inset-bottom)" } },
+        React.createElement("div", { style: { maxWidth: 480, width: "100%", display: "flex" } }, tabs.map((t) => {
+            const active = tab === t.key;
+            return (React.createElement("button", { key: t.key, onClick: () => setTab(t.key), style: { flex: 1, background: "none", border: "none", padding: "10px 0 8px", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 3, color: active ? COLORS.coral : COLORS.navySoft } },
+                React.createElement(Icon, { name: t.icon, size: 19, strokeWidth: active ? 2.6 : 2.1 }),
+                React.createElement("span", { style: { fontSize: 10, fontWeight: active ? 700 : 500 } }, t.label)));
+        }))));
+}
+class ErrorBoundary extends React.Component {
+    constructor(props) { super(props); this.state = { hasError: false, message: "", stack: "" }; }
+    static getDerivedStateFromError(err) { return { hasError: true, message: (err && err.message) || String(err) }; }
+    componentDidCatch(err, info) {
+        console.error("ก้าวฟิต error:", err, info);
+        this.setState({ stack: (info && info.componentStack) || "" });
+    }
+    render() {
+        if (this.state.hasError) {
+            return (React.createElement("div", { style: { minHeight: "100vh", background: COLORS.paper, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" } },
+                React.createElement(Icon, { name: "info", size: 40, color: COLORS.coral }),
+                React.createElement("div", { style: { fontWeight: 700, fontSize: 17, marginTop: 14, marginBottom: 8, color: COLORS.navy } }, "\u0E40\u0E01\u0E34\u0E14\u0E02\u0E49\u0E2D\u0E1C\u0E34\u0E14\u0E1E\u0E25\u0E32\u0E14\u0E0A\u0E31\u0E48\u0E27\u0E04\u0E23\u0E32\u0E27"),
+                React.createElement("div", { style: { fontSize: 13, color: COLORS.navySoft, marginBottom: 14 } }, "\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E17\u0E35\u0E48\u0E1A\u0E31\u0E19\u0E17\u0E36\u0E01\u0E44\u0E27\u0E49\u0E22\u0E31\u0E07\u0E1B\u0E25\u0E2D\u0E14\u0E20\u0E31\u0E22 \u0E25\u0E2D\u0E07\u0E01\u0E25\u0E31\u0E1A\u0E44\u0E1B\u0E2B\u0E19\u0E49\u0E32\u0E2B\u0E25\u0E31\u0E01\u0E2D\u0E35\u0E01\u0E04\u0E23\u0E31\u0E49\u0E07"),
+                this.state.message && (React.createElement("div", { style: { fontSize: 10.5, color: COLORS.navySoft, background: "#fff", border: `1px solid ${COLORS.line}`, borderRadius: 8, padding: 10, marginBottom: 14, maxWidth: 320, textAlign: "left", fontFamily: "monospace", wordBreak: "break-word" } }, this.state.message)),
+                React.createElement("button", { onClick: () => window.location.reload(), style: { padding: "12px 24px", borderRadius: 10, border: "none", background: COLORS.navy, color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" } }, "\u0E01\u0E25\u0E31\u0E1A\u0E2B\u0E19\u0E49\u0E32\u0E2B\u0E25\u0E31\u0E01")));
+        }
+        return this.props.children;
+    }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null,
+    React.createElement(App, null)));
+
+</script>
+
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
